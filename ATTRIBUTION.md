@@ -10,6 +10,15 @@ Media or Phase One source code or assets are included.
 | Coordinated egui and winit forks | [storytold/egui](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a), [storytold/winit](https://github.com/storytold/winit/tree/a517b3846ee8457d84ee4975110bfda6797c44dc) | egui MIT OR Apache-2.0; winit Apache-2.0 | Root patches for the native egui 0.37 stack. Default/monochrome font notices are retained. |
 | Patched Hayro and Vello PDF backends | craft-libs revision above, root Cargo patches | MIT OR Apache-2.0; retained backend notices | First-page CPU rasterization; embedded Foxit/PDFium fonts and Adobe CMaps use BSD notices, the CMYK profile is CC0. No Poppler/system PDF renderer. |
 | Unicode/ICU data | `icu_locale_core` 2.3.0, through craft-i18n | Unicode License v3, retained | Shared UI locale support. |
+| `craft-sqlite` wire helpers | Same exact craft-libs revision above | MIT OR Apache-2.0; covered by the retained Craft licence texts | Bounded SQLite byte primitives for saved `.clip` canvas PNG extraction (D106); no SQL execution. |
+
+D106 test images and database fixtures in `icatalog-media/tests/clip.rs` and
+`icatalog-engine/tests/clip_import.rs` are generated in Rust from original
+synthetic pixels/schema data, under this repository's MIT licence. The owner's
+local `.clip`/PNG pair lives in the optional separate sample repository (D107).
+It is not published or embedded in normal tests; its manifest records unresolved
+licensing/provenance and opt-in corpus expectations. See [evidence and hashes](docs/clip-format.md)
+and [corpus setup](docs/media-corpus.md).
 
 Other Rust dependencies are resolved by Cargo and retain their respective package
 licences. This is not a complete software bill of materials. The

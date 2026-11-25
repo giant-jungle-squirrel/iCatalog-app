@@ -199,6 +199,12 @@ records each format's extraction/render path and resource limits. Upstream types
 stay inside the media crate. The native unwind guard reports decoder failures;
 component budgets do not constitute process isolation.
 
+D106 adds `.clip` saved canvas PNGs using craft-sqlite's pure Rust wire helpers
+at the same Craft pin. The media adapter reads bounded rowid table/overflow pages
+without executing SQL or opening a database file. Only one observed canvas and
+saved preview are supported; [format evidence](clip-format.md) records the schema,
+limits and v1 sample validation. There is no layer renderer or catalogue migration.
+
 Thumbnail generator 3 participates in Update's unchanged-file checks. Stored
 preview caching also requires `metadata_raw`'s `preview_generator/jpeg` value to
 match `<generator-version>:<preview-hash>`. Missing/older/mismatched markers or

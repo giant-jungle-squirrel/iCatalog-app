@@ -39,6 +39,8 @@ A root `Taskfile.yml` ([go-task](https://taskfile.dev)) wraps the common command
 - `task cli:run -- <args>`: run the `icatalog` CLI, e.g. `task cli:run -- init my.sqlite` or `task cli:run -- collection my.sqlite list`.
 - `task cli:clone -- local.sqlite --url http://nas:8080`: initialise a new local replica from the server.
 - `task cli:previews -- <catalogue> status|generate|external|embed`: generate and manage preview storage.
+- `task media:clip-preview -- input.clip new-output.png [export.png]`: developer corpus check; extract the saved PNG without overwriting an existing file and optionally compare a full-size export. See [CLIP format evidence](clip-format.md). Runtime import uses the existing commands.
+- `task test:corpus`: verify real application samples from the optional pinned `samples/` submodule. No downloads; absent samples are an error. This is separate from `task ci`; [local setup and updates](media-corpus.md).
 - `task ui:run -- <catalogue>`: run the `icatalog-ui` desktop shell, e.g. `task ui:run -- photos.sqlite`. `task ui:visual` and `task ui:smoke` run optional visual and native checks (see below).
 - `task release:build -- --target <triple>`, `task release:package -- <triple>`: build the locked release CLI + desktop app and package them under `target/release-assets` (section 8).
 - `task release:test`: archive, release-tag, Arch package metadata and NAS service command regression tests, also included in the workspace gate.

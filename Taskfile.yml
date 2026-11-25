@@ -129,6 +129,16 @@ tasks:
     cmds:
       - cargo test -p icatalog-media
 
+  media:clip-preview:
+    desc: "Extract a saved CLIP PNG to a new file; optionally compare an export (-- input.clip new-output.png [reference.png])"
+    cmds:
+      - cargo run -q -p icatalog-media --example clip_preview -- {{.CLI_ARGS}}
+
+  test:corpus:
+    desc: Verify the optional media sample submodule against its manifest (no downloads)
+    cmds:
+      - cargo run -q -p icatalog-media --example media_corpus -- samples/manifest.toml
+
   test:engine:
     desc: Test the icatalog-engine crate
     cmds:

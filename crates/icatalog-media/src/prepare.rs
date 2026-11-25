@@ -79,6 +79,7 @@ pub fn supported_extension(ext: &str) -> bool {
                 | "pcraft"
                 | "vectorcraft"
                 | "ecproj"
+                | "clip"
         )
 }
 
@@ -140,6 +141,14 @@ fn prepare(
         color = result.color;
         source = result.source;
         (result.pixels, result.format, Some(result.dimensions))
+    } else if hint == "clip" {
+        let preview = crate::clip::extract_preview(bytes)?;
+        source = "clip_canvas_preview";
+        (
+            crate::decode_image(&preview.png)?,
+            hint,
+            Some((preview.canvas_width, preview.canvas_height)),
+        )
     } else if hint == "kra" {
         let mut archive = craft_kra::Archive::open(bytes).map_err(error)?;
         let dims = (archive.image().width, archive.image().height);
@@ -187,6 +196,7 @@ fn prepare(
     let pixels = if matches!(
         format.as_str(),
         "psd"
+            | "clip"
             | "psb"
             | "kra"
             | "ora"

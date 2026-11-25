@@ -25,6 +25,9 @@ rustc-ice-*.txt
 #.idea/
 log/
 
+# OS BS
+.DS_Store
+
 # go-task checksum cache
 .task/
 

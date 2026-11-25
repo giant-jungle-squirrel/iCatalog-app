@@ -10,6 +10,7 @@
     clippy::unreachable
 )]
 
+pub mod clip;
 mod color;
 mod craft_documents;
 mod prepare;

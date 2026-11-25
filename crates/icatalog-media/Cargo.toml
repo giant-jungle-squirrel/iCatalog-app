@@ -9,6 +9,7 @@ license = "MIT"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "tiff"] }
 kamadak-exif = "0.6"
 sha2 = "0.10"
+craft-sqlite = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }
 craft-doc = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }
 craft-pdf = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a", default-features = false, features = ["raster"] }
 craft-raw = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }
@@ -23,4 +24,7 @@ craft-affinity = { git = "https://github.com/storytold/craft-libs", rev = "249a4
 craft-eps = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }
 
 [dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+rusqlite = { version = "0.32", features = ["bundled", "serialize"] }
 craft-zip = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }

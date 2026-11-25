@@ -1138,6 +1138,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-sqlite"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=249a41bd9306a1b34330ac94e596a1a8b881378a#249a41bd9306a1b34330ac94e596a1a8b881378a"
+
+[[package]]
 name = "craft-tiff"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=249a41bd9306a1b34330ac94e596a1a8b881378a#249a41bd9306a1b34330ac94e596a1a8b881378a"
@@ -2575,11 +2580,15 @@ dependencies = [
  "craft-pdf",
  "craft-psd",
  "craft-raw",
+ "craft-sqlite",
  "craft-tiff",
  "craft-zip",
  "image",
  "kamadak-exif",
+ "rusqlite",
+ "serde",
  "sha2",
+ "toml 1.1.8+spec-1.1.0",
 ]
 
 [[package]]

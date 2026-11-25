@@ -19,13 +19,14 @@ are no RAW editing controls or development recipes.
 | Camera RAW | Existing embedded-JPEG locator, then craft-raw preview extraction; sensor decode, bilinear demosaic, as-shot white balance and basic sRGB conversion if neither image decodes | Camera/container support depends on the pinned decoder; unsupported, oversized or damaged files are skipped. This is a catalogue rendition, not an authoring application's developed image |
 | Photoshop PSD/PSB | Saved JPEG thumbnail resource; otherwise the saved merged RGB/grayscale composite (8/16/32-bit, raw/RLE/ZIP/ZIP-prediction compression) | No layer compositor; other colour modes need a usable saved thumbnail. Declared placeholder composites are rejected |
 | Krita / OpenRaster | Saved merged PNG, then saved thumbnail | No layer rendering; a saved image must exist |
+| Clip Studio Paint `.clip` | Saved `CanvasPreview` PNG from the embedded SQLite database (D106) | Validated with one supplied v1 file; single canvas, observed schema/type/unit only. No layer rendering or animation selection; [format evidence and limits](clip-format.md) |
 | Affinity `.afphoto`, `.afdesign`, `.afpub`, `.af` | Saved PNG preview recognized by craft-affinity | No layer rendering; acceptance of an extension does not establish coverage of every application generation. Source canvas dimensions remain unknown |
 | PDF / PDF-compatible Illustrator | First-page render, including page crop/rotation, onto white | No embedded `/Thumb` extraction yet. Password-protected documents are unsupported. Reported omitted/budget-limited content rejects the result; unreported fidelity loss remains possible |
 | EPS / older Illustrator | Saved TIFF or EPSI preview | No PostScript execution; source canvas dimensions remain unknown |
 | PhotoCraft / VectorCraft | Saved composite or thumbnail; VectorCraft saved compatible PDF as fallback | Supported upstream envelope versions only; no document/layer renderer |
 | EffectCraft | Envelope recognized, but no usable rendition is currently exposed | Skipped; no animation renderer |
 
-ArtRage, Rebelle, Clip Studio Paint, InDesign and Procreate remain planned (D103).
+ArtRage, Rebelle, InDesign and Procreate remain planned (D103).
 There is no suitable preview facade for these in the adopted set. Application
 editor, timeline, docking, GPU and writing APIs are not dependencies merely
 because they exist upstream.

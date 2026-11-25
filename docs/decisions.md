@@ -1242,6 +1242,51 @@ cataloguing workflows. InDesign has no lightweight preview facade in this pin;
 ArtRage/Rebelle/Clip Studio/Procreate remain D103 research. PDF fidelity and camera
 coverage need broader fixtures. Resource limits are not a process sandbox.
 
+## D106. Saved CLIP canvas previews (2026-11-25)
+
+The owner requested `.clip` preview extraction based on Craft libraries and
+provided one v1 document plus its PNG export. The embedded `CanvasPreview` PNG
+is usable without rendering layers. Add a bounded read-only media adapter using
+`craft-sqlite` at the existing D105 pin; no other Craft revisions move.
+
+- Import/Update/Generate use the existing shared adapter and commands. Source
+  dimensions come from `Canvas`; stored pixels come from its saved PNG, with
+  white-background JPEG conversion and no upscaling. Generator 3 remains valid:
+  `.clip` had no previously generated catalogue images to invalidate.
+- Parse checked container lengths and a narrow subset of physical SQLite tables;
+  never execute source SQL or access a database file. Restrict to one canvas and
+  one matching saved preview with observed schema/type/unit. Missing/damaged,
+  ambiguous or oversized inputs are ordinary per-file failures.
+- Reuse upstream byte primitives; keep the new adapter local pending any separate
+  upstream contribution. No upstream publication, catalogue migration, protocol
+  change, layer compositor or animation/page selection is part of this change.
+- Generated Rust fixtures cover extraction, overflow/interior pages, hostile
+  input and annotation/last-good-image preservation. The supplied artwork/export
+  stay local and untracked, with evidence in [clip-format.md](clip-format.md).
+  `task media:clip-preview` provides a reproducible local extraction/comparison.
+- Validation is limited to that v1 sample and synthetic cases; other versions and
+  native NAS/browser qualification remain open. A saved preview can be stale;
+  no source freshness indicator has been established.
+
+## D107. Separate optional real-media sample repository (2026-11-25)
+
+The owner requested moving real application samples into a Git repository beside
+iCatalog, retaining freedom to reorganise its folders. Create the local
+`media-format-samples` repository with the supplied CLIP/PNG pair, a manifest and
+usage/provenance notes; retain filenames initially. iCatalog records a specific
+commit through the optional `samples/` submodule. The initial local checkout uses
+an absolute sibling URL override; the tracked relative URL can resolve to a
+same-owner remote once both repositories are hosted. No publication is performed.
+
+`task test:corpus` validates hashes, extracted bytes/dimensions and resized-export
+pixel agreement. It fails explicitly when unavailable or mismatched, performs no
+network access and is separate from normal workspace tests and `task ci`. Only
+its developer example adds serde/TOML dev dependencies; runtime media APIs and
+crate layers are unchanged. The existing small CC0 legacy samples stay committed
+in iCatalog under D9. The real artwork's redistribution licence is not inferred;
+unknown provenance/licensing fields remain explicit in the corpus manifest.
+See [media-corpus.md](media-corpus.md) for local initialisation and update steps.
+
 ## Open questions
 Share-file mode: see the guides. (Samples licensing/commit strategy is resolved: D9.)
 
