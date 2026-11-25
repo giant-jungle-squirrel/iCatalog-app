@@ -283,3 +283,15 @@ Manual Collections (D25) use the existing v1 tables without a migration. Collect
 **Decided:** synthetic and round-trip tests for the catalogue; public-domain images only. **Proposed:** import tests built from the `ivc` sample oracles; migration tests from every prior version; hostile-input tests (truncated or mutated bytes into import must return `Err`).
 
 D46 desktop sync uses the same v7 replica baseline and L3 commands without a migration. D99 stores URL and behavior settings outside SQLite in optional local `<catalogue>.sync.toml` preferences; token/CA file paths are stored only by opt-in, and token contents are never stored. These preferences are not catalogue data or uploaded state. Legacy `<catalogue>.sync-url` files migrate to the new settings format. The companion recovery journal is documented above and likewise does not change catalogue schema.
+
+### Craft generator invalidation (D105; no migration)
+
+`thumbnail.generator_version` is now 3 and participates in Update's unchanged-file
+fast path. Stored preview generation records `metadata_raw` scheme
+`preview_generator`, key `jpeg`, seq 0, UTF-8 value
+`<generator-version>:<preview-hash>`. It complements the unchanged source hash
+and verified stored blob; absent/older/mismatched markers cause regeneration.
+`thumbnail.source` keeps existing values: `raw_preview` for embedded RAW images,
+`psd_resource` for Photoshop thumbnail resources and `rendered` for other paths.
+True source pixel dimensions remain nullable; PDF points/preview dimensions do not
+replace unknown canvas dimensions. Schema v8 and protocol v2 are unchanged.

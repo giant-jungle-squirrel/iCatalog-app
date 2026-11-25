@@ -120,7 +120,7 @@ fn text(value: String) -> Option<String> {
 
 // ICC header and profileDescriptionTag ('desc'), v2 textDescriptionType or
 // v4 multiLocalizedUnicodeType. https://www.color.org/ICC1V42.pdf
-fn icc_info(bytes: &[u8]) -> Option<(Option<String>, Option<String>)> {
+pub(crate) fn icc_info(bytes: &[u8]) -> Option<(Option<String>, Option<String>)> {
     let size = uint(bytes, 0)?;
     let bytes = bytes.get(..size)?;
     if bytes.get(36..40)? != b"acsp" {

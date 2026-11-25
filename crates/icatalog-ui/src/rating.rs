@@ -33,9 +33,17 @@ pub fn editor(ui: &mut egui::Ui, value: &mut Option<i64>, caption: &str) -> egui
             ui.spacing_mut().button_padding = egui::vec2(2.0, 0.0);
             for star in 1..=5 {
                 let filled = star <= value.unwrap_or(0).clamp(0, 5);
-                let response = ui.add(egui::Button::new(
-                    egui::RichText::new(if filled { "★" } else { "☆" }).size(20.0),
-                ).frame(false).min_size(egui::vec2(24.0, 24.0)));
+                let style = crate::icon_button::unframed_style(ui);
+                let label = format!("{caption} {star}");
+                let response = craft_ui::buttons::IconButton::new(
+                    &label, egui::vec2(24.0, 24.0), &style,
+                ).selected(*value == Some(star)).show(ui, |ui, rect, color| {
+                    ui.painter().text(
+                        rect.center(), egui::Align2::CENTER_CENTER,
+                        if filled { "★" } else { "☆" },
+                        egui::FontId::proportional(20.0), color,
+                    );
+                });
                 if response.clicked() {
                     *value = if *value == Some(star) { None } else { Some(star) };
                     response.request_focus();
@@ -44,7 +52,7 @@ pub fn editor(ui: &mut egui::Ui, value: &mut Option<i64>, caption: &str) -> egui
                     keyboard(ui, value);
                 }
                 response.widget_info(|| egui::WidgetInfo::selected(
-                    egui::WidgetType::Button, ui.is_enabled(), *value == Some(star),
+                    egui::Role::Button, ui.is_enabled(), *value == Some(star),
                     format!("{caption} {star}"),
                 ));
                 response.on_hover_text(format!(
@@ -57,7 +65,7 @@ pub fn editor(ui: &mut egui::Ui, value: &mut Option<i64>, caption: &str) -> egui
         response.mark_changed();
     }
     response.widget_info(|| {
-        let mut info = egui::WidgetInfo::labeled(egui::WidgetType::Other, ui.is_enabled(), caption);
+        let mut info = egui::WidgetInfo::labeled(egui::Role::Unknown, ui.is_enabled(), caption);
         info.current_text_value =
             Some(value.map_or_else(|| "Not set".into(), |v| format!("{v} out of 5")));
         info

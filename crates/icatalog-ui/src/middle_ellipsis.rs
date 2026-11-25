@@ -6,8 +6,7 @@ use std::sync::Arc;
 pub fn label(ui: &mut egui::Ui, text: &str) -> egui::Response {
     let galley = layout(ui, text, ui.available_width());
     let response = ui.add(egui::Label::new(galley).show_tooltip_when_elided(false));
-    response
-        .widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Label, ui.is_enabled(), text));
+    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Label, ui.is_enabled(), text));
     response.on_hover_text(text)
 }
 
@@ -101,6 +100,7 @@ mod tests {
     #[test]
     fn empty_short_and_multiline_values_stay_on_one_line() {
         let mut h = Harness::builder().build_ui(|ui| {
+            crate::typography::configure(ui.ctx());
             for text in ["", "a", "雪", "/Photos/a.jpg", "line\nbreak\r\npath"] {
                 for width in [0.0, 1.0, 20.0, 2000.0] {
                     let galley = layout(ui, text, width);

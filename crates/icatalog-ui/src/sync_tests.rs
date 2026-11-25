@@ -305,6 +305,7 @@ fn opted_in_open_check_prompts_once_and_browse_choice_is_read_only() {
     }
     assert!(h.state().sync_decision.is_some());
     assert!(h.state().sync_read_only);
+    h.run_steps(2);
     assert!(h
         .get_by_label("Server changes are available")
         .rect()

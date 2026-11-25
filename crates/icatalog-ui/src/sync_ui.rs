@@ -267,14 +267,13 @@ pub(super) fn security_file(
     choose: &str,
     clear: &str,
     path: &mut Option<PathBuf>,
+    pickers: &mut super::pickers::Pickers,
+    intent: super::pickers::Intent,
 ) -> bool {
     let mut changed = false;
     ui.horizontal(|ui| {
         if ui.button(choose).clicked() {
-            if let Some(selected) = rfd::FileDialog::new().pick_file() {
-                *path = Some(selected);
-                changed = true;
-            }
+            pickers.ask(ui.ctx(), intent);
         }
         if path.is_some() && ui.button(clear).clicked() {
             *path = None;
@@ -289,13 +288,15 @@ pub(super) fn security_file(
 
 impl App {
     pub(super) fn sync_check_consent(&mut self, ctx: &egui::Context) {
+        let picking = self.pickers.pending();
         let Some(check) = self.sync_decision.as_ref() else {
             return;
         };
         let mut sync_now = false;
         let mut keep_read_only = false;
         let mut close = false;
-        let response = egui::Modal::new(egui::Id::new("opening_sync_decision")).show(ctx, |ui| {
+        let response = egui::Modal::new(egui::Id::unique("opening_sync_decision")).show(ctx, |ui| {
+            if picking { ui.disable(); }
             super::spacing::dialog(ui);
             ui.set_width(430.0);
             close = super::dialog::header(ui, "Server changes are available", true);
@@ -340,7 +341,7 @@ impl App {
     }
 
     pub(super) fn open_sync_dialog(&mut self, clone: bool) {
-        if self.preview.is_open() || self.preview.is_loading() {
+        if self.pickers.pending() || self.preview.is_open() || self.preview.is_loading() {
             return;
         }
         if self.worker.is_some()
@@ -374,6 +375,7 @@ impl App {
     }
 
     pub(super) fn sync_modal(&mut self, ctx: &egui::Context) {
+        let picking = self.pickers.pending();
         let Some(dialog) = &mut self.sync_dialog else {
             return;
         };
@@ -381,12 +383,13 @@ impl App {
         let mut close = false;
         let mut save_settings = false;
         let mut address_changed = false;
-        let modal_id = egui::Id::new("client_sync");
+        let modal_id = egui::Id::unique("client_sync");
         let area = egui::Modal::default_area(modal_id)
             .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 32.0));
         let response = egui::Modal::new(modal_id).area(area)
             .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(12))
             .show(ctx, |ui| {
+            if picking { ui.disable(); }
             super::spacing::dialog(ui);
             ui.set_width(430.0);
             close = super::dialog::header(ui,
@@ -412,8 +415,8 @@ impl App {
                 let enter = address.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
                 ui.small("Use HTTPS for remote credentials. HTTP is available on trusted networks.");
                 egui::CollapsingHeader::new("Security settings").show(ui, |ui| {
-                    let changed = security_file(ui, "Choose token file…", "Clear token file", &mut dialog.token_file)
-                        | security_file(ui, "Choose CA file…", "Clear CA file", &mut dialog.ca_file);
+                    let changed = security_file(ui, "Choose token file…", "Clear token file", &mut dialog.token_file, &mut self.pickers, super::pickers::Intent::SyncToken)
+                        | security_file(ui, "Choose CA file…", "Clear CA file", &mut dialog.ca_file, &mut self.pickers, super::pickers::Intent::SyncCa);
                     ui.checkbox(&mut dialog.remember_security_files, "Remember token and CA file paths on this computer");
                     ui.small("Only file paths are saved, never credentials. Tokens require HTTPS or a loopback address.");
                     if changed {
@@ -429,13 +432,7 @@ impl App {
                         ui.add(egui::Label::new(path.display().to_string()).wrap());
                     }
                     if ui.button("Choose local file…").clicked() {
-                        if let Some(path) = rfd::FileDialog::new()
-                            .add_filter("iCatalog catalogue", &["icatalog", "sqlite"])
-                            .set_file_name("Library.icatalog").save_file() {
-                            dialog.destination = Some(path);
-                            dialog.error = None;
-                            dialog.result = None;
-                        }
+                        self.pickers.ask(ctx, super::pickers::Intent::Destination);
                     }
                     ui.small("Choose a new filename in an existing local folder.");
                 } else {
@@ -516,10 +513,14 @@ impl App {
                 Err(error) => dialog.error = Some(format!("Cannot save settings: {error}")),
             }
         }
-        if !dialog.pending && (close || response.should_close()) {
+        if !picking
+            && !self.pickers.pending()
+            && !dialog.pending
+            && (close || response.should_close())
+        {
             self.sync_dialog = None;
             self.set_menu_enabled(self.worker.is_none());
-        } else if submit && !dialog.pending {
+        } else if submit && !self.pickers.pending() && !dialog.pending {
             self.start_sync();
         }
         if address_changed {
@@ -528,6 +529,7 @@ impl App {
     }
 
     pub(super) fn conflict_modal(&mut self, ctx: &egui::Context) {
+        let picking = self.pickers.pending();
         let Some(dialog) = &mut self.conflict_dialog else {
             return;
         };
@@ -537,10 +539,11 @@ impl App {
         let mut open_backup = None;
         let mut page_action = None;
         let mut selected_action = None;
-        let response = egui::Modal::new(egui::Id::new("sync_conflicts"))
+        let response = egui::Modal::new(egui::Id::unique("sync_conflicts"))
             .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(12))
             .show(ctx, |ui| {
-                super::spacing::dialog(ui);
+                if picking { ui.disable(); }
+            super::spacing::dialog(ui);
                 ui.set_width(650.0);
                 close = super::dialog::header(ui, "Resolve sync conflicts", self.worker.is_none());
                 ui.label("Review each conflict and choose the value to keep. Apply choices and sync sends them to the server.");
@@ -623,8 +626,8 @@ impl App {
                 }
                 ui.collapsing("Security settings", |ui| {
                     ui.add_enabled_ui(self.worker.is_none(), |ui| {
-                        security_file(ui, "Choose token file…", "Clear token file", &mut dialog.token_file);
-                        security_file(ui, "Choose CA file…", "Clear CA file", &mut dialog.ca_file);
+                        security_file(ui, "Choose token file…", "Clear token file", &mut dialog.token_file, &mut self.pickers, super::pickers::Intent::ConflictToken);
+                        security_file(ui, "Choose CA file…", "Clear CA file", &mut dialog.ca_file, &mut self.pickers, super::pickers::Intent::ConflictCa);
                         ui.checkbox(&mut dialog.remember_security_files, "Remember token and CA file paths on this computer");
                     });
                 });
@@ -658,7 +661,11 @@ impl App {
         } else if apply {
             self.start_resolve_apply();
         }
-        if (close || response.should_close()) && self.worker.is_none() {
+        if !picking
+            && !self.pickers.pending()
+            && (close || response.should_close())
+            && self.worker.is_none()
+        {
             self.conflict_dialog = None;
         }
     }

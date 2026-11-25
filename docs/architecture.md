@@ -168,7 +168,7 @@ The same UI-only formatting module exposes `exposure_time` for Details (D55). It
 
 The UI-only `dates::DateFormatter` (D53/D54) is shared by List and Details. It presents numeric regional dates with padded day/month and four-digit years, joined to the system-format time with at. Foundation uses a localized ddMMyyyy template; Windows normalizes native short-date pattern fields; Linux normalizes regional date tokens without changing order/separators. It validates epoch timestamps and ISO local capture values with Chrono, then formats through Foundation on macOS, Windows.Globalization on Windows, or Chrono's regional locale data on Linux (LC_ALL, LC_TIME, LANG precedence; system local zone). Modified is an instant rendered in local time; Captured remains a wall-clock value even in a daylight-saving gap. A 512-entry cache expires after 30 seconds of use so native preferences are re-read. Native failures use an explicit ISO fallback (UTC marked for Modified); invalid input shows —. Test fixtures inject fixed locale/offset settings without process-global changes. No engine, storage or command change.
 
-D20/D44 adds v7 catalogue revision/replica/preview tables without a new crate or dependency. Catalogue triggers track generations and entity revisions; the sync layer owns the bounded binary wire codec and baseline comparisons. Collection UIDs and asset UIDs identify wire state; local row IDs remain local. Preview byte decoding/hashing stays in `icatalog-media`; the engine's shared `previews` module manages embedded/external files and verification, and the `previews` command generates/converts them. Generation uses the imported asset format to distinguish raster TIFF decoding from embedded JPEG extraction for RAW files, because TIFF signatures alone do not distinguish them. Sync calls that same storage seam to serve/cache referenced previews using GET only. D57 keeps the v2 envelope and legacy records intact, adding Collection kind 3 only for rules with a maximum; new readers still decode kind 2 baselines with no maximum. Older readers reject kind 3 before applying a batch, preserving the client draft. Both server and clients need schema-v8 support to exchange these catalogues. D101 adds a native stored-preview viewer; automatic background sync remains unbuilt. Desktop media commands disable on established replicas; Collection and annotation commands remain editable.
+D20/D44 adds v7 catalogue revision/replica/preview tables without a new crate or dependency. Catalogue triggers track generations and entity revisions; the sync layer owns the bounded binary wire codec and baseline comparisons. Collection UIDs and asset UIDs identify wire state; local row IDs remain local. Preview byte decoding/hashing stays in `icatalog-media`; the engine's shared `previews` module manages embedded/external files and verification, and the `previews` command generates/converts them. Generation uses the imported asset format to select the shared adapter, distinguishing raster TIFF decoding from RAW preview extraction/basic conversion because TIFF signatures alone do not distinguish them. Sync calls that same storage seam to serve/cache referenced previews using GET only. D57 keeps the v2 envelope and legacy records intact, adding Collection kind 3 only for rules with a maximum; new readers still decode kind 2 baselines with no maximum. Older readers reject kind 3 before applying a batch, preserving the client draft. Both server and clients need schema-v8 support to exchange these catalogues. D101 adds a native stored-preview viewer; automatic background sync remains unbuilt. Desktop media commands disable on established replicas; Collection and annotation commands remain editable.
 
 ## 6. `ivc` seam and clean-room boundary
 
@@ -180,37 +180,37 @@ Boundary: app code reads `ivc` output only; it never copies iView/Expression/Pha
 
 EXIF orientation transforms stay in `icatalog-media` (D31): `thumbnail_jpeg_with_orientation` generates oriented JPEG pixels, while `decode_rgba_with_orientation` supports older stored thumbnails. Import/update pass the same orientation written to `asset_meta`, including for RAW previews. BMP/GIF skip unsupported EXIF parsing after content probing, so valid images do not count as metadata errors (D93). The desktop supplies stored orientation only when `thumbnail.orientation_applied` is false, so grid and detail textures share the result without double rotation. No original media access or catalogue writes are needed for this display fallback.
 
-**Decided** (D8; built today: the raster slice of D13 and the RAW embedded-preview + embedded XMP read slice of D17, hand-rolled with no new dependency):
+**Implemented** (D8/D13/D17/D105):
 
 - Only `icatalog-media` (L1) may hold media/metadata dependencies. Bytes or a seekable reader in, plain data out; never a file path.
 - Flow: `ivc -> icatalog-media -> icatalog-catalog`, wired by the engine (L2). `icatalog-media` and `icatalog-catalog` do not depend on each other.
 - Legacy-format knowledge (PICT pixel decode, `ex??` tail blocks, Mac Roman, IPTC-IIM) is hand-rolled in `ivc`, which returns plain pixels/bytes and takes no encoder dependency.
 - Current pixel decoding uses `image` (default features off, explicit codecs, `Limits`), with EXIF via `kamadak-exif`. D104 permits reviewed additional format/rendering adapters; avoid redundant codecs and qualify wasm size/compatibility before adoption.
-- ArtCraft siblings are sources (study, vendor or git-dep; commit-pinned; feature-flagged). D17 replaced the original planned LightCraft route with the existing hand-written RAW-preview and XMP readers. D104 now records planned craft-libs adoption; no dependency has changed yet.
+- ArtCraft siblings are sources (study, vendor or git-dep; commit-pinned; feature-flagged). D17 replaced the original planned LightCraft route with the existing hand-written RAW-preview and XMP readers. D105 adds exact-revision craft-libs dependencies for extraction and bounded fallback conversion.
 - wasm: `icatalog-media` default features must build for `wasm32-unknown-unknown`; the ffmpeg escape hatch is native-only, user-installed, deferred.
 
-Source colour metadata (D32) uses `icatalog-media::read_color_info`: bounded header/ICC description reads through the existing image stack, including v2 `desc` and v4 `mluc` names. The engine stores small UTF-8 display values in the existing `metadata_raw` table, under `image_info`. Import and changed-file Update refresh those values, clearing lost profiles; Update also backfills absent values for older entries without regenerating thumbnails when content is unchanged. Changed-file Update also replaces the `xmp_packet` scheme, clearing it when the new bytes have no XMP (D80), while preserving user annotations. RAW preview colour is not attributed to the original RAW. No dependency or schema migration is added.
+Source colour metadata (D32) uses `icatalog-media::read_color_info`: bounded header/ICC description reads through the existing image stack, including v2 `desc` and v4 `mluc` names. The engine stores small UTF-8 display values in the existing `metadata_raw` table, under `image_info`. Import and changed-file Update refresh those values, clearing lost profiles; Update also backfills absent values for older entries without regenerating thumbnails when content is unchanged. Changed-file Update also replaces the `xmp_packet` scheme, clearing it when the new bytes have no XMP (D80), while preserving user annotations. RAW preview colour is not attributed to the original RAW. D32 added no dependency or schema migration; D105 dependencies are described below.
 
-**PLANNED (D104): extraction first, basic rendering as fallback.** A shared media
-adapter should supply Import/Update and Generate Previews with source identity,
-true dimensions, metadata, orientation, pixel provenance and bounded preview
-pixels. Extract usable embedded previews/saved composites first; if unavailable,
-use a qualified format renderer. RAW fallback may demosaic and apply as-shot white
-balance/colour conversion to make a basic image. No interactive editor or user
-development recipes are involved. Keep craft-libs types inside `icatalog-media`.
+**Implemented (D105): extraction first, basic rendering as fallback.**
+`icatalog-media::prepare_media` returns iCatalog-owned source identity, optional
+true pixel dimensions, metadata, provenance and oriented JPEG bytes. Import,
+Update and Generate Previews share it. The [support matrix](media-support.md)
+records each format's extraction/render path and resource limits. Upstream types
+stay inside the media crate. The native unwind guard reports decoder failures;
+component budgets do not constitute process isolation.
 
-Reuse existing thumbnail and JPEG-preview encoding/storage on the standalone or
-server machine; replicas consume those stored results through existing sync and
-never need original media for viewing. Schema/protocol changes are not intended.
-Define explicit regeneration and generator-version cache invalidation, including
-unchanged-file fast paths. Unsupported variants and missing renderers remain
-visible per-file outcomes. Source files and annotations stay untouched. The
-inspected upstream RAW development pipeline is incomplete; D104 records its
-pinned research baseline, not a supported iCatalog conversion path.
+Thumbnail generator 3 participates in Update's unchanged-file checks. Stored
+preview caching also requires `metadata_raw`'s `preview_generator/jpeg` value to
+match `<generator-version>:<preview-hash>`. Missing/older/mismatched markers or
+corrupt pixels trigger explicit regeneration. Failed decoding leaves the old
+asset and stored pixels intact. No schema or sync-protocol change.
 
-Shared craft GUI components are separately planned for `icatalog-ui` only, with
-existing command dispatch retained. Review the egui/eframe/test-tool versions and
-consumer-side patches together; this adds no GUI dependency to lower layers.
+The desktop alone uses craft-ui icon buttons/section layout and craft-dialogs
+queued native pickers. Picker results carry typed intent and are applied only
+while the originating interaction remains valid. Existing engine command dispatch
+and annotation/replica permissions remain authoritative. egui/eframe and kittest
+move together to 0.37, with matching root egui/winit patches; PDF uses its pinned
+backend patches as well.
 
 ## 8. wasm constraints
 

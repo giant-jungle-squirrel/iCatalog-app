@@ -55,6 +55,41 @@ fn added_and_unchanged() {
     assert_eq!(all(&ctx).len(), 3);
 }
 
+#[test]
+fn older_generator_rebuilds_unchanged_media_without_touching_user_edits() {
+    let (mut ctx, dir) = setup("generator-refresh");
+    let before = all(&ctx).into_iter().find(|a| a.name == "a.png").unwrap();
+    let mut edit = Params::new();
+    edit.set("id", before.id.to_string());
+    edit.set("rating", "4");
+    edit.set("keyword-exact", "keep, exact");
+    dispatch(&mut ctx, "edit", &edit).unwrap();
+    let annotation = ctx.catalog().annotation(before.id).unwrap();
+    let keywords = ctx.catalog().asset_keywords(before.id).unwrap();
+    ctx.catalog()
+        .connection()
+        .execute(
+            "UPDATE thumbnail SET generator_version=0, bytes=X'00' WHERE asset_id=?1",
+            [before.id],
+        )
+        .unwrap();
+    assert_eq!(metric(&update(&mut ctx, Some(&dir)), "changed"), 1);
+    let after = ctx.catalog().asset(before.id).unwrap().unwrap();
+    assert_eq!(after.uid, before.uid);
+    assert_eq!(after.content_hash, before.content_hash);
+    assert_eq!(ctx.catalog().annotation(before.id).unwrap(), annotation);
+    assert_eq!(ctx.catalog().asset_keywords(before.id).unwrap(), keywords);
+    let thumbnail = ctx.catalog().thumbnail(before.id, 256).unwrap().unwrap();
+    assert_eq!(
+        thumbnail.generator_version,
+        icatalog_media::GENERATOR_VERSION
+    );
+    assert!(icatalog_media::decode_rgba(&thumbnail.bytes).is_ok());
+    let generation = ctx.catalog().generation().unwrap();
+    assert_eq!(metric(&update(&mut ctx, Some(&dir)), "unchanged"), 2);
+    assert_eq!(ctx.catalog().generation().unwrap(), generation);
+}
+
 #[cfg(target_os = "linux")]
 #[test]
 fn invalid_utf8_file_does_not_mark_an_old_lossy_path_missing() {

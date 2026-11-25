@@ -21,6 +21,27 @@ const GUI: &[&str] = &[
     "muda",
     "objc2-app-kit",
     "objc2-foundation",
+    "craft-ui",
+    "craft-dialogs",
+    "craft-menu",
+    "craft-window",
+];
+const CRAFT_MEDIA: &[&str] = &[
+    "craft-raw",
+    "craft-develop",
+    "craft-develop-model",
+    "craft-metadata",
+    "craft-tiff",
+    "craft-psd",
+    "craft-kra",
+    "craft-ora",
+    "craft-affinity",
+    "craft-pdf",
+    "craft-cms",
+    "craft-color-transform",
+    "craft-doc",
+    "craft-eps",
+    "craft-zip",
 ];
 
 fn layer_of(name: &str) -> Option<u8> {
@@ -89,6 +110,9 @@ fn layer_rules_hold() {
             }
             if GUI.contains(&dep.as_str()) && *name != "icatalog-ui" {
                 violations.push(format!("{name} must not depend on {dep}"));
+            }
+            if CRAFT_MEDIA.contains(&dep.as_str()) && *name != "icatalog-media" {
+                violations.push(format!("{name} must not depend on media library {dep}"));
             }
         }
     }

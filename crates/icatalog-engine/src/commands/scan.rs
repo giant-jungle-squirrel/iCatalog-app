@@ -60,16 +60,6 @@ fn read_source(
     }
     Ok(bytes)
 }
-const EXTS: &[&str] = &[
-    "jpg", "jpeg", "png", "gif", "webp", "bmp", "tif", "tiff", "dng", "cr2", "cr3", "nef", "arw",
-    "pef", "raf",
-];
-
-/// RAW extensions take the embedded-preview path. Content sniffing alone cannot
-/// distinguish a DNG from a plain TIFF (both are TIFF-based and may embed a JPEG
-/// preview), so the extension decides and the content sniff only validates it.
-const RAW_EXTS: &[&str] = &["dng", "cr2", "cr3", "nef", "arw", "pef", "raf"];
-
 /// Parse the optional `recursive` param (default true).
 pub(super) fn parse_recursive(v: Option<&str>) -> Result<bool> {
     match v {
@@ -126,34 +116,30 @@ pub(super) fn walk(root: &Path, recursive: bool) -> Walked {
 pub(super) fn has_image_ext(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .map(|e| EXTS.contains(&e.to_ascii_lowercase().as_str()))
+        .map(icatalog_media::supported_extension)
         .unwrap_or(false)
 }
 
-/// Whether the extension marks a RAW container (see [`RAW_EXTS`]).
+/// Whether the extension marks a RAW container rather than a raster TIFF.
 pub(super) fn has_raw_ext(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .map(is_raw_format)
-        .unwrap_or(false)
-}
-
-/// The catalogue stores a RAW asset's extension as its format during import.
-pub(super) fn is_raw_format(format: &str) -> bool {
-    RAW_EXTS.iter().any(|raw| format.eq_ignore_ascii_case(raw))
+        .is_some_and(icatalog_media::is_raw_extension)
 }
 
 /// Why a candidate file was skipped rather than imported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum SkipReason {
-    /// Extension is not on the raster whitelist (`EXTS`).
+    /// Extension is not supported by the shared media adapter.
     UnsupportedExt,
     /// Larger than `MAX_FILE`.
     TooLarge,
     /// Extension matched but the bytes are not a decodable image.
     NotImage,
-    /// A RAW container with no usable embedded JPEG preview.
+    /// A RAW container with neither a usable preview nor a supported rendering path.
     RawNoPreview,
+    /// A creative document has no usable rendition within the supported limits.
+    DocumentNoPreview,
     /// The current catalogue path model cannot represent this filename.
     NonUtf8Path,
 }
@@ -164,7 +150,10 @@ impl SkipReason {
             SkipReason::UnsupportedExt => "unsupported file type",
             SkipReason::TooLarge => "larger than 512 MiB",
             SkipReason::NotImage => "not a recognised image",
-            SkipReason::RawNoPreview => "RAW file with no usable preview",
+            SkipReason::RawNoPreview => "RAW file with no usable preview or supported conversion",
+            SkipReason::DocumentNoPreview => {
+                "document preview unavailable (unsupported, damaged or exceeds limits)"
+            }
             SkipReason::NonUtf8Path => "path is not UTF-8",
         }
     }
@@ -207,55 +196,21 @@ fn mtime_secs(md: &std::fs::Metadata) -> i64 {
         .unwrap_or(0)
 }
 
-/// Decode before changing an asset so an unreadable replacement cannot leave
-/// its old thumbnail paired with a new content hash.
-struct PreparedDerived {
-    exif: icatalog_media::ExifData,
-    thumbnail: icatalog_media::Thumbnail,
-    errors: u64,
-}
-
-fn prepare_derived(
-    image_bytes: &[u8],
-    exif_bytes: &[u8],
-    exif_supported: bool,
-) -> Option<PreparedDerived> {
-    let (exif, errors) = if exif_supported {
-        match icatalog_media::read_exif(std::io::Cursor::new(exif_bytes)) {
-            Ok(d) => (d, 0),
-            Err(_) => (Default::default(), 1),
-        }
-    } else {
-        (Default::default(), 0)
-    };
-    let thumbnail = icatalog_media::thumbnail_jpeg_with_orientation(
-        image_bytes,
-        icatalog_media::GRID_LONG_EDGE,
-        exif.orientation,
-    )
-    .ok()?;
-    Some(PreparedDerived {
-        exif,
-        thumbnail,
-        errors,
-    })
-}
-
 /// Write previously decoded EXIF metadata and grid thumbnail.
 fn write_derived(
     ctx: &Context,
     asset_id: i64,
-    image_bytes: &[u8],
-    source: &str,
     file_size: i64,
     mtime: i64,
-    prepared: PreparedDerived,
+    prepared: icatalog_media::PreparedMedia,
 ) -> Result<u64> {
-    capture_color(ctx, asset_id, image_bytes, source)?;
-    let PreparedDerived {
+    capture_color(ctx, asset_id, &prepared.color)?;
+    let icatalog_media::PreparedMedia {
         exif: d,
         thumbnail: t,
-        errors,
+        source,
+        metadata_errors: errors,
+        ..
     } = prepared;
     // A changed file can lose its EXIF. Clear stale metadata so the display
     // fallback cannot rotate the new thumbnail using an old orientation.
@@ -292,37 +247,27 @@ fn write_derived(
     Ok(errors)
 }
 
-fn capture_color(ctx: &Context, asset_id: i64, image_bytes: &[u8], source: &str) -> Result<()> {
-    // A RAW preview describes rendered preview pixels, not the source sensor data.
-    let color = if source == "rendered" {
-        icatalog_media::read_color_info(image_bytes).unwrap_or_default()
-    } else {
-        Default::default()
-    };
-    for (key, value) in [("color_model", color.model), ("icc_profile", color.profile)] {
+fn capture_color(ctx: &Context, asset_id: i64, color: &icatalog_media::ColorInfo) -> Result<()> {
+    for (key, value) in [
+        ("color_model", &color.model),
+        ("icc_profile", &color.profile),
+    ] {
         ctx.catalog().insert_metadata_raw(&MetadataRaw {
             asset_id,
             scheme: "image_info".into(),
             key: key.into(),
             seq: 0,
-            value: value.unwrap_or_default().into_bytes(),
+            value: value.as_deref().unwrap_or_default().as_bytes().to_vec(),
         })?;
     }
     Ok(())
 }
 
 /// Locate and store the XMP packet verbatim (idempotent); returns the parsed data.
-fn capture_xmp(
-    ctx: &Context,
-    asset_id: i64,
-    primary: &[u8],
-    fallback: Option<&[u8]>,
-) -> Result<Option<XmpData>> {
+fn capture_xmp(ctx: &Context, asset_id: i64, packet: Option<&str>) -> Result<Option<XmpData>> {
     ctx.catalog()
         .delete_metadata_raw_for_asset_scheme(asset_id, "xmp_packet")?;
-    let Some(packet) = icatalog_media::xmp_packet(primary)
-        .or_else(|| fallback.and_then(icatalog_media::xmp_packet))
-    else {
+    let Some(packet) = packet else {
         return Ok(None);
     };
     ctx.catalog().insert_metadata_raw(&MetadataRaw {
@@ -332,7 +277,7 @@ fn capture_xmp(
         seq: 0,
         value: packet.as_bytes().to_vec(),
     })?;
-    Ok(Some(icatalog_media::parse_xmp(&packet)))
+    Ok(Some(icatalog_media::parse_xmp(packet)))
 }
 
 /// Map an `xmp:Label` colour/name string to the numeric label 0-7.
@@ -416,14 +361,6 @@ fn seed_xmp(ctx: &Context, asset_id: i64, data: &XmpData) -> Result<()> {
     Ok(())
 }
 
-/// True if the RAW container itself yields EXIF (else the preview is tried).
-fn raw_has_exif(bytes: &[u8]) -> bool {
-    matches!(
-        icatalog_media::read_exif(std::io::Cursor::new(bytes)),
-        Ok(d) if d != Default::default()
-    )
-}
-
 /// Ingest one file. With `refresh`, a file already catalogued at this path is
 /// compared and updated in place (uid stays stable, `missing` is cleared);
 /// without it, content already known by uid is a duplicate.
@@ -455,6 +392,10 @@ pub(super) fn ingest(
     let mut folder_changed = false;
     let mut needs_thumbnail_repair = false;
     if let Some(a) = &mut existing {
+        needs_thumbnail_repair = ctx
+            .catalog()
+            .thumbnail_generator_version(a.id, i64::from(icatalog_media::GRID_LONG_EDGE))?
+            != Some(icatalog_media::GENERATOR_VERSION);
         if let Some(fid) = folder_id {
             if a.folder_id != Some(fid) {
                 a.folder_id = Some(fid);
@@ -468,7 +409,7 @@ pub(super) fn ingest(
             .any(|m| m.key == "color_model");
         if a.file_size == Some(file_size) && a.mtime == Some(mtime) && has_color_info {
             let derived_from = format!("{file_size}:{mtime}");
-            needs_thumbnail_repair = ctx
+            needs_thumbnail_repair |= ctx
                 .catalog()
                 .thumbnail_derivation(a.id, i64::from(icatalog_media::GRID_LONG_EDGE))?
                 .as_deref()
@@ -510,50 +451,30 @@ pub(super) fn ingest(
         Err(SourceReadError::TooLarge) => return Ok(Ingested::Skipped(SkipReason::TooLarge)),
         Err(SourceReadError::Changed | SourceReadError::Io) => return Ok(Ingested::Failed),
     };
-    let preview: Option<Vec<u8>> = if has_raw_ext(path) {
-        match icatalog_media::raw_preview(&bytes) {
-            Ok(p) if !p.is_empty() => Some(p),
-            _ => return Ok(Ingested::Skipped(SkipReason::RawNoPreview)),
+    let hint = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default();
+    // Decode/render before writing anything: a corrupt replacement keeps its
+    // previous asset fields and thumbnail together.
+    let prepared = match icatalog_media::prepare_media(&bytes, hint, icatalog_media::GRID_LONG_EDGE)
+    {
+        Ok(prepared) => prepared,
+        Err(_) => {
+            return Ok(Ingested::Skipped(if has_raw_ext(path) {
+                SkipReason::RawNoPreview
+            } else if matches!(
+                hint.to_ascii_lowercase().as_str(),
+                "jpg" | "jpeg" | "png" | "gif" | "webp" | "bmp" | "tif" | "tiff"
+            ) {
+                SkipReason::NotImage
+            } else {
+                SkipReason::DocumentNoPreview
+            }))
         }
-    } else {
-        None
     };
-    let image_bytes: &[u8] = preview.as_deref().unwrap_or(&bytes);
-    let source = if preview.is_some() {
-        "raw_preview"
-    } else {
-        "rendered"
-    };
-    let Ok(info) = icatalog_media::probe(image_bytes) else {
-        return Ok(if preview.is_some() {
-            Ingested::Skipped(SkipReason::RawNoPreview)
-        } else {
-            Ingested::Skipped(SkipReason::NotImage)
-        });
-    };
-    let exif_bytes: &[u8] = match &preview {
-        Some(p) if !raw_has_exif(&bytes) => p,
-        _ => &bytes,
-    };
-    // The EXIF reader does not recognize BMP or GIF containers. Use the
-    // probed content format, since a filename extension need not match it.
-    let exif_supported =
-        preview.is_some() || matches!(info.format.as_str(), "jpeg" | "png" | "tiff" | "webp");
-    let (format, width, height) = if preview.is_some() {
-        let ext = path
-            .extension()
-            .map(|e| e.to_string_lossy().to_lowercase())
-            .unwrap_or_else(|| info.format.clone());
-        // Never the preview's dimensions: true size or unknown (NULL).
-        let dims = icatalog_media::raw_dimensions(&bytes);
-        (
-            ext,
-            dims.map(|(w, _)| i64::from(w)),
-            dims.map(|(_, h)| i64::from(h)),
-        )
-    } else {
-        (info.format.clone(), Some(info.width), Some(info.height))
-    };
+    let format = prepared.format.clone();
+    let (width, height) = (prepared.width, prepared.height);
     let hash = icatalog_media::content_hash(&bytes);
     if let Some(mut a) = existing {
         let same = a.content_hash.as_deref() == Some(hash.as_str());
@@ -572,7 +493,7 @@ pub(super) fn ingest(
             a.file_size = Some(file_size);
             a.mtime = Some(mtime);
             a.missing = false;
-            capture_color(ctx, a.id, image_bytes, source)?;
+            capture_color(ctx, a.id, &prepared.color)?;
             ctx.catalog().update_asset(&a)?;
             let current_derivation = format!("{file_size}:{mtime}");
             if stored_derivation.as_deref() != Some(current_derivation.as_str()) {
@@ -584,13 +505,6 @@ pub(super) fn ingest(
             }
             return Ok(Ingested::Unchanged);
         }
-        let Some(prepared) = prepare_derived(image_bytes, exif_bytes, exif_supported) else {
-            return Ok(Ingested::Skipped(if preview.is_some() {
-                SkipReason::RawNoPreview
-            } else {
-                SkipReason::NotImage
-            }));
-        };
         a.file_size = Some(file_size);
         a.mtime = Some(mtime);
         a.missing = false;
@@ -599,20 +513,13 @@ pub(super) fn ingest(
         a.width = width;
         a.height = height;
         ctx.catalog().update_asset(&a)?;
-        let errors = write_derived(ctx, a.id, image_bytes, source, file_size, mtime, prepared)?;
-        capture_xmp(ctx, a.id, &bytes, preview.as_deref())?;
+        capture_xmp(ctx, a.id, prepared.xmp_packet.as_deref())?;
+        let errors = write_derived(ctx, a.id, file_size, mtime, prepared)?;
         return Ok(Ingested::Changed { errors });
     }
     if ctx.catalog().has_content_hash(&hash)? {
         return Ok(Ingested::Duplicate);
     }
-    let Some(prepared) = prepare_derived(image_bytes, exif_bytes, exif_supported) else {
-        return Ok(Ingested::Skipped(if preview.is_some() {
-            SkipReason::RawNoPreview
-        } else {
-            SkipReason::NotImage
-        }));
-    };
     // The first import uses its content hash as UID. After that asset changes,
     // its UID remains stable; if the original bytes are imported again, choose
     // another stable UID without mistaking the historical UID for a duplicate.
@@ -645,18 +552,10 @@ pub(super) fn ingest(
         missing: false,
     };
     let asset_id = ctx.catalog().insert_asset(&a)?;
-    let errors = write_derived(
-        ctx,
-        asset_id,
-        image_bytes,
-        source,
-        file_size,
-        mtime,
-        prepared,
-    )?;
-    if let Some(data) = capture_xmp(ctx, asset_id, &bytes, preview.as_deref())? {
+    if let Some(data) = capture_xmp(ctx, asset_id, prepared.xmp_packet.as_deref())? {
         seed_xmp(ctx, asset_id, &data)?;
     }
+    let errors = write_derived(ctx, asset_id, file_size, mtime, prepared)?;
     Ok(Ingested::Added { errors })
 }
 

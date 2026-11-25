@@ -37,7 +37,7 @@ Status: Accepted.
 
 ## D8. Media decoding and metadata extraction: hybrid, isolated in one crate
 
-Later scope update: D104 permits reviewed craft-libs adapters and basic RAW rendering solely as a missing-preview fallback. The implementation described by D17 remains current until that work lands.
+Later scope update: D104 permits reviewed craft-libs adapters and basic RAW rendering solely as a missing-preview fallback. D105 implements that direction; D17 records the earlier implementation.
 
 Context: iCatalog must extract thumbnails and EXIF/metadata from imported media (legacy `.ivc`, modern photos, RAW, video). Options weighed: hand-roll everything, reuse the ArtCraft sibling projects, or use published crates. Constraints: Rust only, no C/C++ in product code, wasm is a goal, clean-room, permissive licences only (`ATTRIBUTION.md`), never crash, layering.
 Decision (owner approved the direction; nothing is built, library choices are planned):
@@ -136,7 +136,7 @@ Status: Accepted.
 
 ## D17. RAW preview + XMP read with zero new dependencies (2026-10-12)
 
-Later scope update: D104 supersedes the no-demosaic/no-new-dependency direction for planned preview generation only. This entry records the existing implementation; interactive RAW editing is not planned.
+Later scope update: D104 supersedes the no-demosaic/no-new-dependency direction for planned preview generation only. This entry records the earlier implementation; D105 adds the preview fallback, while interactive RAW editing is not planned.
 
 Context: media breadth (D8) promised RAW preview + metadata and XMP, planned via the LightCraft sibling crates (`storytold/lightcraft`). Those are not on crates.io and are not present in this workspace, and the only mature pure-Rust RAW decoders (`rawler`/`rawloader`) are LGPL-2.1, which D8 bans. D8 already anticipated a hand-rolled fallback ("preview locators for DNG/CR2/NEF/ARW/PEF/RAF/CR3"). The schema already reserves the slots this needs: `thumbnail.source = 'raw_preview'` and `metadata_raw.scheme = 'xmp_packet'`. The owner chose to add **no new dependency** rather than a crate or a git dependency, and to cover CR3/RAF in the first slice.
 
@@ -549,7 +549,7 @@ Tests cover max-only/zero/equal/range membership, counts and previews; malformed
 
 The owner requested static CLI builds for x86-64 and ARM64 Linux. Add `nas:build` and `nas:test` tasks, using native Linux hosts and `musl-tools`/`binutils`, with target-scoped musl-gcc C compilation/linking and an explicit static C runtime. Also pass `--no-dynamic-linker`: local x86-64 verification caught older musl-gcc specs retaining an interpreter request in an otherwise static PIE. Preserve Rust's target relocation defaults and reject any remaining shared-library dependencies. Build only `icatalog-cli` with the locked release dependency graph and existing bundled SQLite; no new application dependency, crate, schema, protocol or command id. Refuse unsupported/non-native targets with an actionable error.
 
-Extend `release:package` with CLI-only `icatalog-<version>-<triple>.tar.gz` archives for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`. Check the actual ELF machine, executable type, load segments, absence of an interpreter and absence of NEEDED shared libraries. Native release tests cover existing CLI behavior, including clone/edit/sync; the extracted archive must contain only the executable, report the expected version and create/reopen a synthetic SQLite catalogue. Archive layout/permissions/path-with-spaces checks run on Unix hosts; Linux-specific regressions accept a static ELF and reject dynamic, wrong-architecture and corrupt files.
+Extend `release:package` with CLI-only `icatalog-<version>-<triple>.tar.gz` archives for `x86_64-unknown-linux-musl` and `aarch64-unknown-linux-musl`. Check the actual ELF machine, executable type, load segments, absence of an interpreter and absence of NEEDED shared libraries. Native release tests cover existing CLI behavior, including clone/edit/sync; the extracted archive originally contained only the executable (D105 adds required licence notices), report the expected version and create/reopen a synthetic SQLite catalogue. Archive layout/permissions/path-with-spaces checks run on Unix hosts; Linux-specific regressions accept a static ELF and reject dynamic, wrong-architecture and corrupt files.
 
 Use native `ubuntu-24.04` and `ubuntu-24.04-arm` runners in a reusable `nas.yml`, also triggered on PRs, main pushes and manual dispatch. The release workflow passes its resolved application commit and recovery tooling revision to the reusable workflow and waits for both NAS jobs before publishing eight assets and checksums. No extra write permissions are granted to build jobs. Validation update (2026-11-12): native x86-64/ARM64 build, archive and extracted-CLI checks passed in [hosted run 43113311921](https://github.com/atwright147/iCatalog/actions/runs/43113311921) at `a26a708` on 2026-11-11. At that validation date NAS release publication was unverified; the historical v0.1.0 release still has its original six desktop assets. Both NAS archives were subsequently published in [v0.2.0](https://github.com/atwright147/iCatalog/releases/tag/v0.2.0). Docker/Compose, systemd installation and TLS/auth are separate work.
 
@@ -1144,8 +1144,9 @@ bounded Rust page-rendering fallback, with the first page as the proposed defaul
 Include multi-page, font, rotation/crop, transparency and encrypted-file cases;
 renderer feasibility and dependency selection remain open.
 
-Status: scope accepted; implementation order, exact format/version coverage and
-reader choices remain open. See `docs/roadmap.md` for the proposed breakdown.
+Status: scope accepted. D105 subsequently implements a first subset; see
+`docs/media-support.md` for current coverage and `docs/roadmap.md` for remaining
+families and qualification.
 
 ## D104. Adopt craft-libs for extraction-first previews and shared GUI components (2026-11-19)
 
@@ -1156,7 +1157,7 @@ perform a basic conversion/render to an ordinary image. This is not an interacti
 RAW editor. No editing controls, user development recipes, recipe synchronization
 or original-media transfer are part of this scope.
 
-Decision (direction accepted; integration **PLANNED**):
+Decision (direction accepted; implementation subsequently added by D105):
 
 - Keep format/metadata/RAW adapters in `icatalog-media`, with bytes or seekable
   readers in and iCatalog-owned plain metadata/pixels out. Keep upstream types
@@ -1202,10 +1203,44 @@ declared minimum. The README advertised v0.1.0, but direct GitHub checks returne
 no tags and no latest release on the assessment date; verify availability rather
 than assuming the documented tag resolves.
 
-Status: **PLANNED**. No craft-libs dependency, new format reader or rendering
-fallback has landed in iCatalog. Exact pins/features, format/version coverage,
-fallback renderers, GUI migration scope and implementation order remain open.
-See `docs/roadmap.md` for qualification and delivery steps.
+Status: implemented in D105 with a newer reviewed commit. The dated research
+above describes the Nov 19 source, not the currently adopted capabilities.
+
+## D105. Pinned Craft media adapters and native GUI reuse (2026-11-25)
+
+The owner authorized importing useful craft-libs functionality after reviewing
+release availability and history. Adopt exact commit
+`249a41bd9306a1b34330ac94e596a1a8b881378a` (Nov 23), rather than an absent v0.1.0
+tag or floating main. This checkpoint includes the sensor/develop stages missing
+from D104's Nov 19 research, and had successful upstream platform/nightly checks.
+Our own platform qualification remains separate.
+
+- Import/Update/Generate share an iCatalog-owned media adapter. Prefer saved
+  previews/composites, then use supported basic conversion: RAW sensor decoding,
+  white balance, bilinear demosaic and sRGB; saved PSD composites; first-page PDF.
+  KRA/ORA/Affinity, EPS/Illustrator and Craft saved renditions are also integrated.
+  [The support matrix](media-support.md) records exact boundaries and component
+  budgets. This does not add a RAW editor or development recipes.
+- Decode before catalogue writes. Update preserves identity/annotations and the
+  last good derived data after a failed replacement. Generator 3 repairs unchanged
+  old thumbnails; version/hash markers invalidate stored-preview cache entries.
+  Existing JPEG storage, schema v8, protocol v2 and replica write ownership remain.
+- Adopt craft-ui icon buttons and section layout plus craft-dialogs queued native
+  pickers in the thin shell. Upgrade egui/eframe/kittest together to 0.37, with
+  upstream's coordinated egui/winit revisions. Media dependencies remain L1-only.
+- Root Cargo patches reproduce the eight PDF backend packages used upstream,
+  including malformed-input fixes. No system LibRaw/Poppler/LittleCMS dependency.
+  Optional Craft system-font discovery stays off. Licences, embedded PDF font/CMap
+  notices and profile notices are retained and included in release artifacts.
+- Tests use synthetic images/documents for extraction, fallback, malformed-input
+  bounds, orientation, annotation preservation and generator repair. Native NAS
+  and wasm/browser validation of the new graph remain outstanding; previous
+  released-build qualification does not establish this revision's compatibility.
+
+Unadopted editor/document-writing/docking/timeline/GPU APIs do not serve current
+cataloguing workflows. InDesign has no lightweight preview facade in this pin;
+ArtRage/Rebelle/Clip Studio/Procreate remain D103 research. PDF fidelity and camera
+coverage need broader fixtures. Resource limits are not a process sandbox.
 
 ## Open questions
 Share-file mode: see the guides. (Samples licensing/commit strategy is resolved: D9.)

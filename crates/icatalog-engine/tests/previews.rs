@@ -225,6 +225,40 @@ fn generated_oriented_previews_convert_and_remain_portable_without_original_medi
         Some(bytes)
     );
 }
+
+#[test]
+fn previews_rebuild_when_generator_marker_is_missing_old_or_for_another_blob() {
+    let (_, mut c) = fixture("generator-refresh");
+    command(&mut c, "generate").unwrap();
+    let asset = c.catalog().asset(1).unwrap().unwrap();
+    for marker in [None, Some("0:old"), Some("3:wrong-blob")] {
+        c.catalog()
+            .delete_metadata_raw_for_asset_scheme(1, "preview_generator")
+            .unwrap();
+        if let Some(marker) = marker {
+            c.catalog()
+                .insert_metadata_raw(&icatalog_catalog::MetadataRaw {
+                    asset_id: 1,
+                    scheme: "preview_generator".into(),
+                    key: "jpeg".into(),
+                    seq: 0,
+                    value: marker.as_bytes().to_vec(),
+                })
+                .unwrap();
+        }
+        assert!(command(&mut c, "generate")
+            .unwrap()
+            .render()
+            .contains("generated 1"));
+        assert_eq!(c.catalog().asset(1).unwrap().unwrap(), asset);
+        let generation = c.catalog().generation().unwrap();
+        assert!(command(&mut c, "generate")
+            .unwrap()
+            .render()
+            .contains("cached 1"));
+        assert_eq!(c.catalog().generation().unwrap(), generation);
+    }
+}
 #[test]
 fn missing_or_corrupt_external_bytes_abort_conversion_without_losing_references() {
     let (root, mut c) = fixture("failure");

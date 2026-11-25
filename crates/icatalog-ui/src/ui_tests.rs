@@ -193,6 +193,7 @@ impl Fixture {
     ) -> Harness<'static, App> {
         let path = self.path();
         Harness::builder()
+            .allow_missing_glyphs()
             .with_max_steps(20)
             .with_size(size)
             .with_pixels_per_point(pixels_per_point)
@@ -713,6 +714,7 @@ fn double_click_collection(h: &mut Harness<'_, App>, label: &str) {
 fn double_click_harness(fixture: &Fixture) -> Harness<'static, App> {
     let path = fixture.path();
     Harness::builder()
+        .allow_missing_glyphs()
         .with_size([800.0, 600.0])
         .with_step_dt(1.0 / 60.0)
         .build_eframe(move |cc| {
@@ -900,7 +902,7 @@ fn open_asset_menu(h: &mut Harness<'_, App>, name: &str) {
 fn open_collection_submenu(h: &mut Harness<'_, App>) {
     h.get(
         By::new()
-            .label("Collections ⏵")
+            .label("Collections")
             .role(egui::accesskit::Role::Button),
     )
     .click();
@@ -1141,6 +1143,7 @@ fn interaction_rectangle_selection_tracks_scroll_in_content_coordinates() {
         h.ctx.dragged_id()
     );
     h.event(egui::Event::MouseWheel {
+        source: egui::MouseWheelSource::Unknown,
         unit: egui::MouseWheelUnit::Point,
         phase: egui::TouchPhase::Move,
         delta: egui::vec2(0.0, -1600.0),
@@ -1335,17 +1338,20 @@ fn collection_count_space_keeps_long_names_separate_from_counts() {
         for selected in [false, true] {
             for count in [0, 12_345] {
                 let name = "A very long collection name that must truncate beside the count";
-                let mut h = Harness::builder().with_size([width, 80.0]).build_ui_state(
-                    |ui, rects| {
-                        let row = collection_row(ui, name, count, selected);
-                        *rects = Some((
-                            row.rect(egui::Id::new("collection_name")).unwrap(),
-                            row.rect(egui::Id::new("collection_count")).unwrap(),
-                            row.response.rect,
-                        ));
-                    },
-                    None::<(egui::Rect, egui::Rect, egui::Rect)>,
-                );
+                let mut h = Harness::builder()
+                    .allow_missing_glyphs()
+                    .with_size([width, 80.0])
+                    .build_ui_state(
+                        |ui, rects| {
+                            let row = collection_row(ui, name, count, selected);
+                            *rects = Some((
+                                row.rect(egui::IdSalt::new("collection_name")).unwrap(),
+                                row.rect(egui::IdSalt::new("collection_count")).unwrap(),
+                                row.response.rect,
+                            ));
+                        },
+                        None::<(egui::Rect, egui::Rect, egui::Rect)>,
+                    );
                 h.run();
                 let (name_rect, count_rect, row_rect) = h.state().unwrap();
                 assert!(name_rect.right() < count_rect.left());
@@ -1412,7 +1418,11 @@ fn interaction_collection_membership_cache_survives_redraws_and_skips_busy_reads
     assert!(h.state().worker.is_some());
     assert!(!h.state().selection_membership_loaded);
     assert!(h
-        .get_by_label("Collections ⏵")
+        .get(
+            By::new()
+                .label("Collections")
+                .role(egui::accesskit::Role::Button)
+        )
         .accesskit_node()
         .is_disabled());
     ctx.catalog().connection().execute_batch("COMMIT").unwrap();
@@ -1955,7 +1965,7 @@ fn interaction_collection_write_failure_preserves_membership_and_recovers() {
     open_asset_menu(&mut h, "Red.bmp");
     h.get(
         By::new()
-            .label("Collections ⏵")
+            .label("Collections")
             .role(egui::accesskit::Role::Button),
     )
     .click();
@@ -2235,7 +2245,7 @@ fn visual_snapshots() {
     collections
         .get(
             By::new()
-                .label("Collections ⏵")
+                .label("Collections")
                 .role(egui::accesskit::Role::Button),
         )
         .click();
@@ -2607,6 +2617,7 @@ fn interaction_scroll_keeps_thumbnail_cache_bounded() {
     settle(&mut h);
     h.event(egui::Event::PointerMoved(egui::pos2(500.0, 400.0)));
     h.event(egui::Event::MouseWheel {
+        source: egui::MouseWheelSource::Unknown,
         unit: egui::MouseWheelUnit::Point,
         phase: egui::TouchPhase::Move,
         delta: egui::vec2(0.0, -2400.0),

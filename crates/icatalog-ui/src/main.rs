@@ -16,9 +16,11 @@ mod dates;
 mod dialog;
 mod fieldset;
 mod formatting;
+mod icon_button;
 mod interaction;
 mod list_row;
 mod middle_ellipsis;
+mod pickers;
 mod preview;
 mod rating;
 mod selection;
@@ -284,6 +286,7 @@ struct App {
     /// Menu-item ids delivered from the native menu.
     menu_events: std::sync::mpsc::Receiver<String>,
     worker: Option<worker::Worker>,
+    pickers: pickers::Pickers,
     sync_dialog: Option<sync_ui::SyncDialog>,
     sync_job: Option<sync_ui::SyncJob>,
     sync_progress: Option<icatalog_engine::SyncProgress>,
@@ -509,6 +512,7 @@ impl App {
             menu,
             menu_events,
             worker: None,
+            pickers: pickers::Pickers::default(),
             sync_dialog: None,
             sync_job: None,
             sync_progress: None,
@@ -664,8 +668,18 @@ impl App {
         Ok(())
     }
 
+    fn run_action(&mut self, action: Action) {
+        match action {
+            Action::Import(dir) => match import_params(&dir) {
+                Ok(params) => self.run_command("import", &params),
+                Err(message) => self.status = message.into(),
+            },
+            Action::Update => self.run_command("update", &Params::new()),
+        }
+    }
+
     fn run_command(&mut self, id: &str, params: &Params) {
-        if self.worker.is_some() || self.preview.is_fetching() {
+        if self.worker.is_some() || self.preview.is_fetching() || self.pickers.pending() {
             return;
         }
         if matches!(id, "sync" | "sync-resolve") {
@@ -739,13 +753,15 @@ impl App {
 
     fn can_edit(&self) -> bool {
         self.can_edit_catalogue()
+            && !self.pickers.pending()
             && self.worker.is_none()
             && self.create_collection.is_none()
             && !self.preview.is_open()
     }
 
     fn can_open_preview(&self) -> bool {
-        self.worker.is_none()
+        !self.pickers.pending()
+            && self.worker.is_none()
             && self.create_collection.is_none()
             && self.sync_dialog.is_none()
             && self.conflict_dialog.is_none()
@@ -985,6 +1001,7 @@ impl App {
     }
 
     fn set_menu_enabled(&self, enabled: bool) {
+        let enabled = enabled && !self.pickers.pending();
         #[cfg(target_os = "macos")]
         if let Some(menu) = &self.menu {
             menu.import
@@ -1001,7 +1018,11 @@ impl App {
     }
 
     fn close_allowed(&mut self) -> bool {
-        if self.worker.is_some() || self.preview.is_fetching() {
+        if self.pickers.pending() {
+            self.status =
+                "Finish choosing a file or cancel the native dialog before closing.".into();
+            false
+        } else if self.worker.is_some() || self.preview.is_fetching() {
             self.status = "A command is running; wait for it to finish before closing.".into();
             false
         } else {
@@ -1038,7 +1059,8 @@ impl App {
 
     #[cfg(target_os = "macos")]
     fn open_finder_catalogue(&mut self, path: PathBuf) {
-        if self.worker.is_some()
+        if self.pickers.pending()
+            || self.worker.is_some()
             || self.sync_job.is_some()
             || self.create_collection.is_some()
             || self.sync_dialog.is_some()
@@ -1616,7 +1638,7 @@ impl App {
         };
         let mut submit = false;
         let mut cancel = false;
-        let response = egui::Modal::new(egui::Id::new("create_collection"))
+        let response = egui::Modal::new(egui::Id::unique("create_collection"))
             .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(12))
             .show(ctx, |ui| {
                 spacing::dialog(ui);
@@ -1938,7 +1960,7 @@ impl App {
             ui,
             &output,
             selection::AssetLayout {
-                origin: origin.unwrap_or(output.inner_rect.min - output.state.offset),
+                origin: origin.unwrap_or(output.inner_rect.min - output.state.unclamped_offset()),
                 columns: 1,
                 cell,
                 spacing,
@@ -2022,7 +2044,7 @@ impl App {
                             );
                             response.widget_info(|| {
                                 egui::WidgetInfo::selected(
-                                    egui::WidgetType::SelectableLabel,
+                                    egui::Role::Button,
                                     ui.is_enabled(),
                                     self.selection.ids.contains(&id),
                                     &name,
@@ -2047,7 +2069,7 @@ impl App {
             ui,
             &output,
             selection::AssetLayout {
-                origin: origin.unwrap_or(output.inner_rect.min - output.state.offset),
+                origin: origin.unwrap_or(output.inner_rect.min - output.state.unclamped_offset()),
                 columns: cols,
                 cell: egui::vec2(tile, height),
                 spacing,
@@ -2077,7 +2099,7 @@ impl App {
             )
         });
         let mut viewport = output.inner_rect;
-        let content_origin = viewport.min - output.state.offset;
+        let content_origin = viewport.min - output.state.unclamped_offset();
         if output.content_size.y > viewport.height() {
             // Floating scrollbars overlap inner_rect. Keep their drag surface
             // separate from rectangle selection, including while expanded.
@@ -2265,7 +2287,7 @@ impl App {
                 let response = ui.selectable_label(label == l, l.to_string());
                 response.widget_info(|| {
                     egui::WidgetInfo::selected(
-                        egui::WidgetType::SelectableLabel,
+                        egui::Role::Button,
                         ui.is_enabled(),
                         label == l,
                         format!("Label {l}"),
@@ -2315,12 +2337,19 @@ impl App {
 /// down-pointing one (`▼`), so a text arrow left a missing-character box on
 /// screen whenever the section was open. Painting keeps both states the same
 /// size and weight.
-fn disclosure_arrow(ui: &mut egui::Ui, open: bool) -> egui::Response {
+fn disclosure_arrow(ui: &mut egui::Ui, open: bool, name: &str) -> egui::Response {
     let response = ui.add(
         egui::Button::new("")
             .small()
             .min_size(egui::vec2(18.0, ui.spacing().interact_size.y)),
     );
+    response.widget_info(|| {
+        egui::WidgetInfo::labeled(
+            egui::Role::Button,
+            ui.is_enabled(),
+            format!("{} {name}", if open { "Collapse" } else { "Expand" }),
+        )
+    });
     let icon_rect = egui::Rect::from_center_size(
         response.rect.center(),
         egui::Vec2::splat(ui.spacing().icon_width_inner),
@@ -2352,24 +2381,22 @@ fn collection_row(
     name: &str,
     count: i64,
     selected: bool,
-) -> egui::AtomLayoutResponse {
-    let mut classes = egui::widget_style::Classes::default();
+) -> egui::WidgetAtomResponse {
+    let mut classes = egui::class::Classes::default();
     if selected {
-        egui::widget_style::HasClasses::add_class(&mut classes, egui::widget_style::SELECTED_CLASS);
+        egui::class::HasClasses::add_class(&mut classes, egui::Button::CLASS_SELECTED);
     }
-    // Resolve the same previous-pass state that Button uses for its name.
-    let state = ui
-        .ctx()
-        .read_response(ui.next_auto_id())
-        .map(|response| response.widget_state())
-        .unwrap_or_default();
-    let text_style = ui.style().button_style(&classes, state).text_style;
+    // Resolve the same previous-pass style that Button uses for its name.
+    let text_style = ui
+        .widget_style::<egui::widget_style::ButtonStyle>(ui.next_auto_id(), &classes)
+        .atom_layout
+        .text_style;
     let count_text =
         ui.painter()
             .layout_no_wrap(count.to_string(), text_style.font_id, text_style.color);
-    let count_id = egui::Id::new("collection_count");
+    let count_id = egui::IdSalt::new("collection_count");
     let name = egui::Atom {
-        id: Some(egui::Id::new("collection_name")),
+        id: Some(egui::IdSalt::new("collection_name")),
         ..egui::Atom::from(name)
     };
     let row = egui::Button::selectable(
@@ -2488,7 +2515,20 @@ fn collection_params(action: &str, collection: i64, assets: &[i64]) -> Params {
 }
 
 impl eframe::App for App {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        let was_picking = self.pickers.pending();
+        self.dispatch_picker_answer();
+        if was_picking && !self.pickers.pending() {
+            // A native panel confirmation/cancellation must not also submit or
+            // dismiss the underlying egui dialog when focus returns.
+            ui.input_mut(|input| {
+                input.consume_key(egui::Modifiers::NONE, egui::Key::Enter);
+                input.consume_key(egui::Modifiers::NONE, egui::Key::Escape);
+            });
+        }
+        if self.pickers.pending() {
+            ui.disable();
+        }
         self.poll_worker();
         self.preview.poll(ui.ctx());
         #[cfg(target_os = "macos")]
@@ -2507,7 +2547,7 @@ impl eframe::App for App {
             self.pending_collection_toggle = None;
         }
         self.visible_thumbnails.clear();
-        if self.worker.is_some() || self.preview.is_fetching() {
+        if self.worker.is_some() || self.preview.is_fetching() || self.pickers.pending() {
             ui.ctx()
                 .request_repaint_after(std::time::Duration::from_millis(50));
             if ui.ctx().input(|input| input.viewport().close_requested()) && !self.close_allowed() {
@@ -2565,7 +2605,8 @@ impl eframe::App for App {
                 }
                 continue;
             }
-            if self.worker.is_some()
+            if self.pickers.pending()
+                || self.worker.is_some()
                 || self.create_collection.is_some()
                 || self.sync_dialog.is_some()
                 || self.preview.is_open()
@@ -2574,9 +2615,7 @@ impl eframe::App for App {
             }
             match id.as_str() {
                 "file.import" if !self.replica && self.can_edit_catalogue() => {
-                    if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                        action = Some(Action::Import(dir));
-                    }
+                    self.pickers.ask(&ctx, pickers::Intent::Import);
                 }
                 "file.update" if !self.replica && self.can_edit_catalogue() => {
                     action = Some(Action::Update)
@@ -2628,9 +2667,7 @@ impl eframe::App for App {
                             .clicked()
                         {
                             ui.close();
-                            if let Some(dir) = rfd::FileDialog::new().pick_folder() {
-                                action = Some(Action::Import(dir));
-                            }
+                            self.pickers.ask(&ctx, pickers::Intent::Import);
                         }
                         if ui
                             .add_enabled(
@@ -2714,7 +2751,7 @@ impl eframe::App for App {
                                         // device; its name selects every source
                                         // on that device.
                                         let open = !state.collapsed_devices.contains(&key);
-                                        if disclosure_arrow(ui, open).clicked() {
+                                        if disclosure_arrow(ui, open, &dev).clicked() {
                                             if open {
                                                 state.collapsed_devices.insert(key.clone());
                                             } else {
@@ -2753,7 +2790,7 @@ impl eframe::App for App {
                             let has_children = folders.iter().any(|x| x.parent_id == Some(f.id));
                             if has_children {
                                 let exp = state.expanded.contains(&f.id);
-                                if disclosure_arrow(ui, exp).clicked() {
+                                if disclosure_arrow(ui, exp, &f.name).clicked() {
                                     if exp {
                                         state.expanded.remove(&f.id);
                                     } else {
@@ -2951,14 +2988,8 @@ impl eframe::App for App {
             });
         });
 
-        if let Some(a) = action {
-            match a {
-                Action::Import(dir) => match import_params(&dir) {
-                    Ok(params) => self.run_command("import", &params),
-                    Err(message) => self.status = message.into(),
-                },
-                Action::Update => self.run_command("update", &Params::new()),
-            }
+        if let Some(action) = action {
+            self.run_action(action);
         }
 
         if let Some(id) = self.selection.primary {
@@ -2970,17 +3001,20 @@ impl eframe::App for App {
             egui::Panel::right("details")
                 .default_size(320.0)
                 .show(ui, |ui| {
-                    egui::Frame::NONE.inner_margin(6).show(ui, |ui| {
-                        spacing::inspector(ui);
-                        egui::ScrollArea::vertical()
-                            .id_salt("details_content")
-                            .auto_shrink([false, false])
-                            .show(ui, |ui| {
-                                ui.add_enabled_ui(self.can_edit(), |ui| {
-                                    edit = self.details_panel(ui);
+                    craft_ui::layout::Section::new(egui::Frame::NONE.inner_margin(6)).show(
+                        ui,
+                        |ui| {
+                            spacing::inspector(ui);
+                            egui::ScrollArea::vertical()
+                                .id_salt("details_content")
+                                .auto_shrink([false, false])
+                                .show(ui, |ui| {
+                                    ui.add_enabled_ui(self.can_edit(), |ui| {
+                                        edit = self.details_panel(ui);
+                                    });
                                 });
-                            });
-                    });
+                        },
+                    );
                 });
         }
 
@@ -3050,11 +3084,15 @@ impl eframe::App for App {
         self.create_collection_modal(&ctx);
         self.sync_modal(&ctx);
         self.conflict_modal(&ctx);
-        self.preview.show(&ctx);
+        self.preview.show(&ctx, &mut self.pickers);
         self.sync_check_consent(&ctx);
+        if self.pickers.pending() {
+            self.set_menu_enabled(false);
+        }
+        self.pickers.show(&ctx, frame);
         if let Some(asset) = egui::DragAndDrop::payload::<DraggedAsset>(&ctx) {
             if let Some(pointer) = ctx.pointer_hover_pos() {
-                egui::Area::new(egui::Id::new("dragged_asset"))
+                egui::Area::new(egui::Id::unique("dragged_asset"))
                     .order(egui::Order::Tooltip)
                     .interactable(false)
                     .fixed_pos(pointer + egui::vec2(12.0, 12.0))

@@ -24,8 +24,8 @@ task docker:test -- icatalog:local
 
 Use `x86_64-unknown-linux-musl` on x86-64. These commands reuse the locked static
 CLI build and verify its ELF architecture and absence of dynamic dependencies.
-The image contains the CLI and empty mount directories, with no shell, compiler
-or desktop libraries. Its build context contains only those files; catalogues,
+The image contains the CLI, licence notices and empty mount directories, with no
+shell, compiler or desktop libraries. Its build context contains only those files; catalogues,
 media and the repository are not sent to the image builder.
 
 `ICATALOG_CONTAINER_ENGINE=podman` selects Podman for the build and container tests.
@@ -311,3 +311,7 @@ Implementation references: [Docker USER and exec-form ENTRYPOINT](https://docs.d
 [Compose bind mounts and init](https://docs.docker.com/reference/compose-file/services/).
 
 For hosts where a container is unnecessary, the [systemd service guide](nas-service.md) provides a restricted native service and optional HTTPS configuration. D99 also passed both native architectures in [NAS run 43640244806](https://github.com/atwright147/iCatalog/actions/runs/43640244806) and [Docker/Compose run 43640244692](https://github.com/atwright147/iCatalog/actions/runs/43640244692) at `a117808` on 2026-11-14.
+
+D105 images also retain Craft dependency and embedded-font/profile notices at
+`/usr/share/licenses/icatalog/craft-libs/`. The new media dependency graph still
+requires native x86-64/ARM64 build and container qualification before release.

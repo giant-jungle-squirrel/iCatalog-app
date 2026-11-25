@@ -326,7 +326,13 @@ fn raw_without_preview_skipped() {
     std::fs::write(dir.join("a.dng"), dng(None, Some(XMP))).unwrap();
     let o = go(&mut ctx, "import", &dir);
     assert_eq!(metric(&o, "imported"), 0);
-    assert_eq!(metric(&o, "skipped: RAW file with no usable preview"), 1);
+    assert_eq!(
+        metric(
+            &o,
+            "skipped: RAW file with no usable preview or supported conversion"
+        ),
+        1
+    );
     assert!(ctx
         .catalog()
         .query_assets(&AssetQuery::default())

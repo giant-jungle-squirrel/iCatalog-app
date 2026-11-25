@@ -1,0 +1,229 @@
+{
+  "description": "Unmodified licence and attribution files accompanying the craft-libs integration. SHA-256 records the copied bytes.",
+  "files": [
+    {
+      "file": "LICENSE-MIT",
+      "source": "LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "2f42c0cafc8ad394d91373fe1f342aee5453850b151a51405c68cae9ada86d26"
+    },
+    {
+      "file": "LICENSE-APACHE",
+      "source": "LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "file": "NOTICE",
+      "source": "NOTICE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "6cd50310a0efc48b665e4ded4e296af0860b8d6147a209953ffd471cb7ca2aa5"
+    },
+    {
+      "file": "ATTRIBUTION.md",
+      "source": "ATTRIBUTION.md",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "69ce2721ccfe82ebf05ac071e875d1997330c281cf8a3b0018f69175f00d5e75"
+    },
+    {
+      "file": "pdf-backend/hayro/LICENSE-APACHE",
+      "source": "licenses/pdf-backend/hayro/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "0cec06e0e55fbc3dc5cee4fca9b607f66cb8f4e4dbcf3b3c013594dd156732e9"
+    },
+    {
+      "file": "pdf-backend/hayro/LICENSE-MIT",
+      "source": "licenses/pdf-backend/hayro/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "51b50e6120c344dcc146bbd6375ca1c78e079d97c8bea76e67a53d6ff0efebac"
+    },
+    {
+      "file": "pdf-backend/hayro-cmap/LICENSE-APACHE",
+      "source": "licenses/pdf-backend/hayro-cmap/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "0cec06e0e55fbc3dc5cee4fca9b607f66cb8f4e4dbcf3b3c013594dd156732e9"
+    },
+    {
+      "file": "pdf-backend/hayro-cmap/LICENSE-MIT",
+      "source": "licenses/pdf-backend/hayro-cmap/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "51b50e6120c344dcc146bbd6375ca1c78e079d97c8bea76e67a53d6ff0efebac"
+    },
+    {
+      "file": "pdf-backend/hayro-cmap/LICENSE.txt",
+      "source": "licenses/pdf-backend/hayro-cmap/LICENSE.txt",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "742665db9c8e1bc72603c6d319ca3e90b83bd6d95202f0cd4ef11068a07a9c29"
+    },
+    {
+      "file": "pdf-backend/hayro-interpret/LICENSE-APACHE",
+      "source": "licenses/pdf-backend/hayro-interpret/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "0cec06e0e55fbc3dc5cee4fca9b607f66cb8f4e4dbcf3b3c013594dd156732e9"
+    },
+    {
+      "file": "pdf-backend/hayro-interpret/LICENSE-MIT",
+      "source": "licenses/pdf-backend/hayro-interpret/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "51b50e6120c344dcc146bbd6375ca1c78e079d97c8bea76e67a53d6ff0efebac"
+    },
+    {
+      "file": "pdf-backend/hayro-interpret/assets/CGATS_LICENSE.txt",
+      "source": "licenses/pdf-backend/hayro-interpret/assets/CGATS_LICENSE.txt",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "469d87b5fa48f8aaf69e25f4fcac3a309c97dbb7d561b917638abdb640e004d9"
+    },
+    {
+      "file": "pdf-backend/hayro-interpret/assets/LICENSE_FOXIT",
+      "source": "licenses/pdf-backend/hayro-interpret/assets/LICENSE_FOXIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "b578cdd2345840ada550bd12519533812320d5f1d21cf4c1c7e1b1b0a31c98b7"
+    },
+    {
+      "file": "pdf-backend/hayro-jbig2/LICENSE-APACHE",
+      "source": "licenses/pdf-backend/hayro-jbig2/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "0cec06e0e55fbc3dc5cee4fca9b607f66cb8f4e4dbcf3b3c013594dd156732e9"
+    },
+    {
+      "file": "pdf-backend/hayro-jbig2/LICENSE-MIT",
+      "source": "licenses/pdf-backend/hayro-jbig2/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "51b50e6120c344dcc146bbd6375ca1c78e079d97c8bea76e67a53d6ff0efebac"
+    },
+    {
+      "file": "pdf-backend/hayro-syntax/LICENSE-APACHE",
+      "source": "licenses/pdf-backend/hayro-syntax/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "0cec06e0e55fbc3dc5cee4fca9b607f66cb8f4e4dbcf3b3c013594dd156732e9"
+    },
+    {
+      "file": "pdf-backend/hayro-syntax/LICENSE-MIT",
+      "source": "licenses/pdf-backend/hayro-syntax/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "51b50e6120c344dcc146bbd6375ca1c78e079d97c8bea76e67a53d6ff0efebac"
+    },
+    {
+      "file": "pdf-backend/hayro-postscript/LICENSE-MIT",
+      "source": "vendor/hayro-postscript/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "51b50e6120c344dcc146bbd6375ca1c78e079d97c8bea76e67a53d6ff0efebac"
+    },
+    {
+      "file": "pdf-backend/hayro-postscript/LICENSE-APACHE",
+      "source": "vendor/hayro-postscript/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "0cec06e0e55fbc3dc5cee4fca9b607f66cb8f4e4dbcf3b3c013594dd156732e9"
+    },
+    {
+      "file": "pdf-backend/vello_common/LICENSE-MIT",
+      "source": "vendor/vello_common/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "adf157330f722fe7cfd5964a2a6974eff851b718228c6735724a11706e6f4dec"
+    },
+    {
+      "file": "pdf-backend/vello_common/LICENSE-APACHE",
+      "source": "vendor/vello_common/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    },
+    {
+      "file": "pdf-backend/vello_cpu/LICENSE-MIT",
+      "source": "vendor/vello_cpu/LICENSE-MIT",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "adf157330f722fe7cfd5964a2a6974eff851b718228c6735724a11706e6f4dec"
+    },
+    {
+      "file": "pdf-backend/vello_cpu/LICENSE-APACHE",
+      "source": "vendor/vello_cpu/LICENSE-APACHE",
+      "repository": "https://github.com/storytold/craft-libs",
+      "revision": "249a41bd9306a1b34330ac94e596a1a8b881378a",
+      "sha256": "a6cba85bc92e0cff7a450b1d873c0eaa2e9fc96bf472df0247a26bec77bf3ff9"
+    },
+    {
+      "file": "egui/LICENSE-MIT",
+      "source": "LICENSE-MIT",
+      "repository": "https://github.com/storytold/egui",
+      "revision": "6d518fc799681571963842f95b55a6b68431b15a",
+      "sha256": "95ca92f5f8ea5231f1580b3a2a799e8260af3114b900e1def5355a7f44bcf60c"
+    },
+    {
+      "file": "egui/LICENSE-APACHE",
+      "source": "LICENSE-APACHE",
+      "repository": "https://github.com/storytold/egui",
+      "revision": "6d518fc799681571963842f95b55a6b68431b15a",
+      "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+    },
+    {
+      "file": "egui/fonts/Hack-Regular.txt",
+      "source": "crates/epaint_default_fonts/fonts/Hack-Regular.txt",
+      "repository": "https://github.com/storytold/egui",
+      "revision": "6d518fc799681571963842f95b55a6b68431b15a",
+      "sha256": "47c0cccbeec7e8614548cc485588b28149e7874188df5f41b36efebcee285c87"
+    },
+    {
+      "file": "egui/fonts/OFL.txt",
+      "source": "crates/epaint_default_fonts/fonts/OFL.txt",
+      "repository": "https://github.com/storytold/egui",
+      "revision": "6d518fc799681571963842f95b55a6b68431b15a",
+      "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"
+    },
+    {
+      "file": "egui/fonts/UFL.txt",
+      "source": "crates/epaint_default_fonts/fonts/UFL.txt",
+      "repository": "https://github.com/storytold/egui",
+      "revision": "6d518fc799681571963842f95b55a6b68431b15a",
+      "sha256": "2f0015108d68627bd788d313f529c21ff4da2c2c42a5e1f3883acc83480f9002"
+    },
+    {
+      "file": "egui/fonts/egui-icons.txt",
+      "source": "crates/epaint_default_fonts/fonts/egui-icons.txt",
+      "repository": "https://github.com/storytold/egui",
+      "revision": "6d518fc799681571963842f95b55a6b68431b15a",
+      "sha256": "36dbbfd79d73974f864116879c17dd11559e1340277385f1ac52d8d29a5f5c79"
+    },
+    {
+      "file": "egui/fonts/emoji-icon-font-mit-license.txt",
+      "source": "crates/epaint_default_fonts/fonts/emoji-icon-font-mit-license.txt",
+      "repository": "https://github.com/storytold/egui",
+      "revision": "6d518fc799681571963842f95b55a6b68431b15a",
+      "sha256": "b9d2c1d909aa149996fd4c91dcb92b2362a04431640c1d200959da94caf8cde1"
+    },
+    {
+      "file": "winit/LICENSE",
+      "source": "LICENSE",
+      "repository": "https://github.com/storytold/winit",
+      "revision": "a517b3846ee8457d84ee4975110bfda6797c44dc",
+      "sha256": "6dc0e068dcf3a5bc8e054205b85b7720e1d49265bbc64bf515d2cf79197df69a"
+    },
+    {
+      "file": "unicode/LICENSE",
+      "source": "LICENSE",
+      "repository": "https://crates.io/crates/icu_locale_core/2.3.0",
+      "revision": "2.3.0",
+      "sha256": "f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2"
+    }
+  ]
+}

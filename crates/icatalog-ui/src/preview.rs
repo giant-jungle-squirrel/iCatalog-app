@@ -126,7 +126,26 @@ impl Viewer {
         }
     }
 
-    pub(super) fn show(&mut self, ctx: &egui::Context) {
+    pub(super) fn picker_result(&mut self, token: bool, result: Result<PathBuf, String>) {
+        if !self.open || self.is_loading() {
+            return;
+        }
+        match result {
+            Ok(path) => {
+                if let Some(source) = &mut self.fetch {
+                    if token {
+                        source.token_file = Some(path);
+                    } else {
+                        source.ca_file = Some(path);
+                    }
+                }
+            }
+            Err(error) => self.error = Some(error),
+        }
+    }
+
+    pub(super) fn show(&mut self, ctx: &egui::Context, pickers: &mut super::pickers::Pickers) {
+        let picking = pickers.pending();
         if !self.open {
             return;
         }
@@ -136,9 +155,12 @@ impl Viewer {
         let mut close = false;
         let mut fetch = false;
         let fetching = self.is_fetching();
-        let response = egui::Modal::new(egui::Id::new("asset_preview"))
+        let response = egui::Modal::new(egui::Id::unique("asset_preview"))
             .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(12))
             .show(ctx, |ui| {
+                if picking {
+                    ui.disable();
+                }
                 super::spacing::dialog(ui);
                 ui.set_width(width);
                 close = super::dialog::header(ui, "Preview", !fetching);
@@ -195,12 +217,16 @@ impl Viewer {
                                     "Choose token file…",
                                     "Clear token file",
                                     &mut source.token_file,
+                                    pickers,
+                                    super::pickers::Intent::PreviewToken,
                                 );
                                 super::sync_ui::security_file(
                                     ui,
                                     "Choose CA file…",
                                     "Clear CA file",
                                     &mut source.ca_file,
+                                    pickers,
+                                    super::pickers::Intent::PreviewCa,
                                 );
                                 ui.small("These selections apply only to this preview dialog.");
                             });
@@ -225,9 +251,9 @@ impl Viewer {
                     .add_enabled(!fetching, egui::Button::new("Close"))
                     .clicked();
             });
-        if !fetching && (close || response.should_close()) {
+        if !picking && !pickers.pending() && !fetching && (close || response.should_close()) {
             self.dismiss();
-        } else if fetch {
+        } else if fetch && !pickers.pending() {
             self.start_fetch();
         }
     }

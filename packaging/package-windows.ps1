@@ -17,4 +17,16 @@ $arch = if ($Target -eq 'x86_64-pc-windows-msvc') { 'x64' } else { 'arm64' }
 New-Item -ItemType Directory -Force -Path $outputDir | Out-Null
 $archive = Join-Path $outputDir "icatalog-$version-windows-$arch.zip"
 # Build with the static MSVC runtime (see release.yml), so no redistributable is required.
-Compress-Archive -LiteralPath "$binaryDir/icatalog.exe", "$binaryDir/icatalog-ui.exe", 'packaging/windows/associate.ps1', 'packaging/windows/README.txt' -DestinationPath $archive -Force
+$contents = @("$binaryDir/icatalog.exe", "$binaryDir/icatalog-ui.exe", 'packaging/windows/associate.ps1', 'packaging/windows/README.txt')
+if (Test-Path -LiteralPath 'licenses/craft-libs' -PathType Container) {
+    foreach ($required in @('README.md', 'SOURCE.json', 'LICENSE-MIT', 'LICENSE-APACHE', 'NOTICE', 'pdf-backend/hayro-interpret/assets/LICENSE_FOXIT', 'pdf-backend/hayro-cmap/LICENSE.txt')) {
+        $notice = "licenses/craft-libs/$required"
+        if (!(Test-Path -LiteralPath $notice -PathType Leaf) -or (Get-Item -LiteralPath $notice).Length -eq 0) {
+            throw "Missing dependency notice: $notice"
+        }
+    }
+    $contents += 'licenses'
+} elseif (Select-String -LiteralPath 'Cargo.lock' -Pattern '^name = "craft-(ui|raw|pdf)"$' -Quiet) {
+    throw 'Missing licenses/craft-libs notices required by this application source.'
+}
+Compress-Archive -LiteralPath $contents -DestinationPath $archive -Force

@@ -63,6 +63,22 @@ impl Catalog {
             .flatten())
     }
 
+    /// Generator revision without loading thumbnail pixels during a rescan.
+    pub fn thumbnail_generator_version(
+        &self,
+        asset_id: i64,
+        size_class: i64,
+    ) -> Result<Option<i64>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT generator_version FROM thumbnail WHERE asset_id=?1 AND size_class=?2",
+                params![asset_id, size_class],
+                |row| row.get(0),
+            )
+            .optional()?)
+    }
+
     /// Keep a thumbnail's source marker current when only file metadata changed
     /// and the verified content hash still matches the asset.
     pub fn retag_thumbnail(

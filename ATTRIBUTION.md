@@ -6,7 +6,15 @@ Media or Phase One source code or assets are included.
 | Component | Origin | Licence | Local use |
 |---|---|---|---|
 | `tiny_http` 0.12.0 | [tiny-http/tiny-http](https://github.com/tiny-http/tiny-http), crates.io release 0.12.0 | MIT OR Apache-2.0; both licence texts retained in `vendor/tiny_http/` | Vendored HTTP server dependency, patched for bounded rejected-request handling and fallible Rustls TLS configuration. See [patch notes](vendor/tiny_http/ICATALOG-PATCH.md). |
+| Craft media and GUI crates | [storytold/craft-libs](https://github.com/storytold/craft-libs/tree/249a41bd9306a1b34330ac94e596a1a8b881378a), exact revision `249a41bd9306a1b34330ac94e596a1a8b881378a` | MIT OR Apache-2.0; texts and upstream notices retained in `licenses/craft-libs/` | RAW preview/sensor decode and basic development, metadata/TIFF, PSD/KRA/ORA/Affinity/EPS/PDF/Craft document renditions; native icon buttons, section layout and queued pickers. See [coverage](docs/media-support.md). |
+| Coordinated egui and winit forks | [storytold/egui](https://github.com/storytold/egui/tree/6d518fc799681571963842f95b55a6b68431b15a), [storytold/winit](https://github.com/storytold/winit/tree/a517b3846ee8457d84ee4975110bfda6797c44dc) | egui MIT OR Apache-2.0; winit Apache-2.0 | Root patches for the native egui 0.37 stack. Default/monochrome font notices are retained. |
+| Patched Hayro and Vello PDF backends | craft-libs revision above, root Cargo patches | MIT OR Apache-2.0; retained backend notices | First-page CPU rasterization; embedded Foxit/PDFium fonts and Adobe CMaps use BSD notices, the CMYK profile is CC0. No Poppler/system PDF renderer. |
+| Unicode/ICU data | `icu_locale_core` 2.3.0, through craft-i18n | Unicode License v3, retained | Shared UI locale support. |
 
 Other Rust dependencies are resolved by Cargo and retain their respective package
-licences. This file records copied third-party source; it is not a complete
-software bill of materials. No third-party artwork is shipped.
+licences. This is not a complete software bill of materials. The
+[Craft notice bundle](licenses/craft-libs/README.md) records source paths and
+hashes and is included in desktop/NAS packages and Docker images. Upstream's full
+attribution is retained for provenance; it lists optional assets and test corpora
+that iCatalog does not ship. Embedded fonts, CMaps and colour profiles are used;
+no third-party photographs or authoring-application artwork are included.

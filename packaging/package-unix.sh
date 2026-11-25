@@ -28,12 +28,17 @@ trap 'rm -rf "$stage"' EXIT
 
 if [[ "$target" == *-linux-musl ]]; then
   install -m 755 "$binary_dir/icatalog" "$stage/icatalog"
-  COPYFILE_DISABLE=1 tar -czf "$output_dir/icatalog-$version-$target.tar.gz" -C "$stage" icatalog
+  bash packaging/copy-notices.sh "$stage/licenses"
+  entries=(icatalog)
+  if [[ -d "$stage/licenses" ]]; then entries+=(licenses); fi
+  COPYFILE_DISABLE=1 tar -czf "$output_dir/icatalog-$version-$target.tar.gz" -C "$stage" "${entries[@]}"
 elif [[ "$target" == aarch64-apple-darwin ]]; then
   bundle="$stage/iCatalog.app/Contents"
   mkdir -p "$bundle/MacOS"
   install -m 755 "$binary_dir/icatalog-ui" "$bundle/MacOS/icatalog-ui"
   install -m 755 "$binary_dir/icatalog" "$stage/icatalog"
+  bash packaging/copy-notices.sh "$stage/licenses"
+  bash packaging/copy-notices.sh "$bundle/Resources/licenses"
   cat > "$bundle/Info.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -55,12 +60,15 @@ EOF
   codesign --force --sign - "$stage/iCatalog.app"
   codesign --verify --strict "$stage/iCatalog.app"
   # Avoid AppleDouble sidecars appearing as extra sealed resources in other extractors.
-  COPYFILE_DISABLE=1 tar -czf "$output_dir/icatalog-$version-macos-arm64.tar.gz" -C "$stage" iCatalog.app icatalog
+  entries=(iCatalog.app icatalog)
+  if [[ -d "$stage/licenses" ]]; then entries+=(licenses); fi
+  COPYFILE_DISABLE=1 tar -czf "$output_dir/icatalog-$version-macos-arm64.tar.gz" -C "$stage" "${entries[@]}"
 else
   install -d "$stage/usr/bin" "$stage/usr/share/applications" "$stage/usr/share/mime/packages"
   install -m 755 "$binary_dir/icatalog" "$binary_dir/icatalog-ui" "$stage/usr/bin/"
   install -m 644 packaging/icatalog.desktop "$stage/usr/share/applications/"
   install -m 644 packaging/icatalog-mime.xml "$stage/usr/share/mime/packages/"
+  bash packaging/copy-notices.sh "$stage/usr/share/licenses/icatalog"
   # Debian/RPM use ~ for prereleases; Arch forbids '-' in pkgver.
   package_version=${version/-/~}
   common=(-s dir -n icatalog --iteration 1

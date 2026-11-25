@@ -8,14 +8,22 @@ case "$target" in
 esac
 version=$(bash packaging/version.sh)
 archive="${ICATALOG_RELEASE_OUTPUT_DIR:-target/release-assets}/icatalog-$version-$target.tar.gz"
-if [[ $(tar -tzf "$archive") != icatalog ]]; then
-  echo 'NAS archive must contain only the icatalog executable.' >&2
-  exit 1
-fi
+while IFS= read -r entry; do
+  case "$entry" in
+    icatalog|licenses/|licenses/craft-libs/|licenses/craft-libs/*) ;;
+    *) echo 'NAS archive must contain only the CLI and dependency notices.' >&2; exit 1 ;;
+  esac
+  case "/$entry/" in
+    */../*|*/./*) echo 'Unsafe NAS archive path.' >&2; exit 1 ;;
+  esac
+done < <(tar -tzf "$archive")
 mkdir -p target
 scratch=$(mktemp -d target/nas-check.XXXXXX)
 trap 'rm -rf "$scratch"' EXIT
 tar -xzf "$archive" -C "$scratch"
+if [[ -d licenses/craft-libs ]]; then
+  diff -r licenses/craft-libs "$scratch/licenses/craft-libs"
+fi
 bash packaging/check-static-elf.sh "$target" "$scratch/icatalog"
 test "$("$scratch/icatalog" --version)" = "icatalog $version"
 "$scratch/icatalog" init "$scratch/smoke.sqlite"

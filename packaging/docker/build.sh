@@ -28,5 +28,8 @@ trap 'rm -rf "$context"' EXIT
 cp "$binary" "$context/icatalog"
 cp packaging/docker/Dockerfile "$context/Dockerfile"
 mkdir "$context/catalogue" "$context/media"
+bash packaging/copy-notices.sh "$context/licenses"
+# An empty directory also keeps historical, pre-craft recovery builds valid.
+mkdir -p "$context/licenses"
 chmod 755 "$context/icatalog" "$context/catalogue" "$context/media"
 "$engine" build --platform "$platform" --build-arg "VERSION=$version" --tag "$image" "$context"

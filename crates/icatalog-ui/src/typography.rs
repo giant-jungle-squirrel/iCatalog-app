@@ -3,6 +3,9 @@
 use eframe::egui;
 
 pub fn configure(ctx: &egui::Context) {
+    // Foreign filenames may contain characters unavailable on this machine.
+    // Render a placeholder instead of treating missing font coverage as a crash.
+    ctx.set_missing_glyph_policy(egui::MissingGlyphPolicy::Tofu);
     ctx.all_styles_mut(|style| {
         for (role, size) in [
             (egui::TextStyle::Body, 15.0),
@@ -16,6 +19,8 @@ pub fn configure(ctx: &egui::Context) {
             }
         }
         style.spacing.interact_size.y = 24.0;
+        // Keep the established catalogue browsing density across egui upgrades.
+        style.spacing.button_padding = egui::vec2(4.0, 1.0);
         let visuals = &mut style.visuals;
         // Hint glyphs to physical pixels and avoid fractional glyph variants,
         // which can soften small text. Preserve theme-specific atlas gamma.
@@ -45,7 +50,9 @@ pub fn configure(ctx: &egui::Context) {
             &mut visuals.widgets.open,
         ] {
             widget.fg_stroke.color = text;
+            widget.corner_radius = egui::CornerRadius::same(2);
         }
+        visuals.widgets.hovered.corner_radius = egui::CornerRadius::same(3);
         visuals.selection.bg_fill = selection_fill;
         visuals.selection.stroke.color = selected;
     });

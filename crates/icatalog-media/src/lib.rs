@@ -11,6 +11,12 @@
 )]
 
 mod color;
+mod craft_documents;
+mod prepare;
+pub use prepare::{
+    is_raw_extension, prepare_media, prepare_media_with_orientation, supported_extension,
+    PreparedMedia,
+};
 mod raw;
 pub use color::{read_color_info, ColorInfo};
 pub use raw::{is_raw, raw_dimensions, raw_preview};
@@ -27,7 +33,7 @@ use sha2::{Digest, Sha256};
 /// Canonical grid thumbnail long edge, in pixels.
 pub const GRID_LONG_EDGE: u32 = 256;
 /// Thumbnail generator version.
-pub const GENERATOR_VERSION: i64 = 2;
+pub const GENERATOR_VERSION: i64 = 3;
 
 const MAX_DIM: u32 = 1_000_000;
 
@@ -277,12 +283,19 @@ pub fn thumbnail_jpeg_with_orientation(
     long_edge: u32,
     orientation: Option<i64>,
 ) -> Result<Thumbnail> {
+    encode_thumbnail(decode_image(bytes)?, long_edge, orientation)
+}
+
+fn encode_thumbnail(
+    img: DynamicImage,
+    long_edge: u32,
+    orientation: Option<i64>,
+) -> Result<Thumbnail> {
     let long_edge = if long_edge == 0 {
         GRID_LONG_EDGE
     } else {
         long_edge
     };
-    let img = decode_image(bytes)?;
     let (w, h) = (img.width(), img.height());
     let long = w.max(h);
     let target = long_edge.min(long);

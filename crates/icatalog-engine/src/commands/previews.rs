@@ -66,7 +66,14 @@ impl Command for Previews {
         let (mut generated, mut cached, mut failed) = (0usize, 0usize, 0usize);
         for asset in assets {
             if let Some(p) = ctx.catalog().preview(asset.id)? {
-                if Some(p.source_hash.as_str()) == asset.content_hash.as_deref()
+                let marker = format!("{}:{}", icatalog_media::GENERATOR_VERSION, p.hash);
+                let current_generator = ctx
+                    .catalog()
+                    .metadata_raw_for_asset_scheme(asset.id, "preview_generator")?
+                    .iter()
+                    .any(|m| m.key == "jpeg" && m.seq == 0 && m.value == marker.as_bytes());
+                if current_generator
+                    && Some(p.source_hash.as_str()) == asset.content_hash.as_deref()
                     && crate::previews::read_recoverable(ctx.catalog(), ctx.path(), &p.hash)?
                         .is_some()
                 {
@@ -101,44 +108,39 @@ impl Command for Previews {
                 failed += 1;
                 continue;
             }
-            // TIFF headers also identify ordinary raster TIFFs; use the format
-            // recorded at import to select the embedded-preview path.
-            let image = if asset
-                .format
-                .as_deref()
-                .is_some_and(super::scan::is_raw_format)
-            {
-                match icatalog_media::raw_preview(&bytes) {
-                    Ok(b) => b,
-                    Err(_) => {
-                        failed += 1;
-                        continue;
-                    }
-                }
-            } else {
-                bytes
-            };
             let orientation = ctx
                 .catalog()
                 .asset_meta(asset.id)?
                 .and_then(|m| m.orientation);
-            let preview =
-                match icatalog_media::thumbnail_jpeg_with_orientation(&image, 1920, orientation) {
-                    Ok(p) => p,
-                    Err(_) => {
-                        failed += 1;
-                        continue;
-                    }
-                };
+            let preview = match icatalog_media::prepare_media_with_orientation(
+                &bytes,
+                asset.format.as_deref().unwrap_or_default(),
+                1920,
+                orientation,
+            ) {
+                Ok(prepared) => prepared.thumbnail,
+                Err(_) => {
+                    failed += 1;
+                    continue;
+                }
+            };
             let hash = crate::previews::hash(&preview.bytes);
             crate::previews::store(ctx.catalog(), ctx.path(), &hash, &preview.bytes, &mode)?;
             ctx.catalog().store_preview(&icatalog_catalog::Preview {
                 asset_id: asset.id,
-                hash,
+                hash: hash.clone(),
                 width: preview.width,
                 height: preview.height,
                 source_hash,
             })?;
+            ctx.catalog()
+                .insert_metadata_raw(&icatalog_catalog::MetadataRaw {
+                    asset_id: asset.id,
+                    scheme: "preview_generator".into(),
+                    key: "jpeg".into(),
+                    seq: 0,
+                    value: format!("{}:{hash}", icatalog_media::GENERATOR_VERSION).into_bytes(),
+                })?;
             generated += 1;
         }
         ctx.catalog().prune_unreferenced_preview_blobs()?;

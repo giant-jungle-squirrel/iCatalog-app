@@ -342,6 +342,31 @@ mod unix {
 
         containers.start();
         containers.clone_when_ready(catalogue);
+        let notices = scratch.path().join("image notices");
+        success(
+            Command::new(&containers.engine)
+                .arg("cp")
+                .arg(format!(
+                    "{}:/usr/share/licenses/icatalog/craft-libs",
+                    containers.server
+                ))
+                .arg(&notices)
+                .output()
+                .unwrap(),
+        );
+        for notice in [
+            "README.md",
+            "NOTICE",
+            "LICENSE-MIT",
+            "LICENSE-APACHE",
+            "pdf-backend/hayro-interpret/assets/LICENSE_FOXIT",
+            "pdf-backend/hayro-cmap/LICENSE.txt",
+        ] {
+            assert_eq!(
+                std::fs::read(root().join("licenses/craft-libs").join(notice)).unwrap(),
+                std::fs::read(notices.join(notice)).unwrap(),
+            );
+        }
         success(containers.cli(
             &containers.client,
             &[

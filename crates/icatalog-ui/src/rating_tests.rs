@@ -65,6 +65,14 @@ fn five_star_editor_supports_pointer_keyboard_clear_and_disabled_state() {
                 h.run();
                 assert_eq!(h.state().0, expected, "{theme:?} {scale}: {key:?}");
             }
+            h.get_by_label("Test Rating 2").focus();
+            h.run();
+            h.key_press(egui::Key::Enter);
+            h.run();
+            assert_eq!(h.state().0, Some(2));
+            h.key_press(egui::Key::Space);
+            h.run();
+            assert_eq!(h.state().0, None);
             h.state_mut().1 = false;
             h.run();
             assert!(h

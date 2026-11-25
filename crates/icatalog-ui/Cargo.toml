@@ -14,8 +14,11 @@ icatalog-catalog = { path = "../icatalog-catalog" }
 icatalog-engine = { path = "../icatalog-engine" }
 icatalog-sync = { path = "../icatalog-sync" }
 icatalog-media = { path = "../icatalog-media" }
-eframe = "0.36"
-rfd = "0.17"
+eframe = "0.37"
+# Preserve the bundled symbols used by ratings and deterministic headless rendering.
+egui = { version = "0.37", features = ["monochrome_emoji_fonts"] }
+craft-ui = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a", default-features = false }
+craft-dialogs = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }
 chrono = { version = "0.4.45", default-features = false, features = ["std"] }
 serde = { version = "1", features = ["derive"] }
 toml = "1"
@@ -34,5 +37,5 @@ windows = { version = "0.62.2", features = ["Foundation", "Globalization_DateTim
 
 [dev-dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["std", "unstable-locales"] }
-egui_kittest = { version = "=0.36.2", features = ["wgpu", "snapshot", "eframe"] }
+egui_kittest = { version = "0.37", features = ["wgpu", "snapshot", "eframe"] }
 tempfile = "3"

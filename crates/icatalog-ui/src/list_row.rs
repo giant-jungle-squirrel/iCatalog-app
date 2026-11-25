@@ -206,12 +206,7 @@ pub fn draw(
     // clicks and drags even where a metadata label or child UI is underneath.
     let response = ui.interact(rect, id, egui::Sense::click_and_drag());
     response.widget_info(|| {
-        egui::WidgetInfo::selected(
-            egui::WidgetType::SelectableLabel,
-            ui.is_enabled(),
-            selected,
-            &asset.name,
-        )
+        egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, &asset.name)
     });
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

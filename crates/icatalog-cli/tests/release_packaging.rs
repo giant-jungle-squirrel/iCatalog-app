@@ -9,6 +9,51 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
 
+fn assert_notice_bundle(destination: &std::path::Path) {
+    fn compare(source: &std::path::Path, destination: &std::path::Path) {
+        for entry in std::fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let output = destination.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                compare(&entry.path(), &output);
+            } else {
+                assert_eq!(
+                    std::fs::read(entry.path()).unwrap(),
+                    std::fs::read(&output).unwrap(),
+                    "{}",
+                    output.display()
+                );
+            }
+        }
+    }
+    compare(&root().join("licenses/craft-libs"), destination);
+}
+
+#[cfg(unix)]
+#[test]
+fn notice_packaging_requires_the_bundle_only_for_craft_sources() {
+    let scratch = tempfile::tempdir().unwrap();
+    let destination = scratch.path().join("output with spaces");
+    let run = || {
+        Command::new("bash")
+            .arg(root().join("packaging/copy-notices.sh"))
+            .arg(&destination)
+            .current_dir(scratch.path())
+            .output()
+            .unwrap()
+    };
+    std::fs::write(scratch.path().join("Cargo.lock"), "version = 4\n").unwrap();
+    success(run());
+    assert!(!destination.exists());
+    std::fs::write(scratch.path().join("Cargo.lock"), "name = \"craft-raw\"\n").unwrap();
+    assert!(!run().status.success());
+    std::fs::create_dir_all(scratch.path().join("licenses/craft-libs")).unwrap();
+    assert!(
+        !run().status.success(),
+        "an incomplete notice bundle must fail"
+    );
+}
+
 #[test]
 fn linux_desktop_associates_only_icatalog_files() {
     let desktop = std::fs::read_to_string(root().join("packaging/icatalog.desktop")).unwrap();
@@ -79,7 +124,7 @@ fn unix_packaging_rejects_unsupported_targets_and_missing_binaries() {
 
 #[cfg(unix)]
 #[test]
-fn nas_archives_contain_only_an_executable_cli_for_each_target() {
+fn nas_archives_contain_an_executable_cli_and_notices_for_each_target() {
     let scratch = tempfile::tempdir().unwrap();
     let binaries = scratch.path().join("CLI fixture with spaces");
     let assets = scratch.path().join("assets with spaces");
@@ -106,7 +151,11 @@ fn nas_archives_contain_only_an_executable_cli_for_each_target() {
             .arg(&archive)
             .output()
             .unwrap();
-        assert_eq!(String::from_utf8_lossy(&listing.stdout).trim(), "icatalog");
+        let names = String::from_utf8_lossy(&listing.stdout);
+        assert!(names.lines().any(|name| name == "icatalog"));
+        assert!(names
+            .lines()
+            .all(|name| name == "icatalog" || name.starts_with("licenses/")));
         success(listing);
         let extracted = scratch.path().join(target);
         std::fs::create_dir(&extracted).unwrap();
@@ -120,6 +169,7 @@ fn nas_archives_contain_only_an_executable_cli_for_each_target() {
                 .unwrap(),
         );
         let cli = extracted.join("icatalog");
+        assert_notice_bundle(&extracted.join("licenses/craft-libs"));
         success(Command::new(&cli).arg("--version").output().unwrap());
         let catalogue = extracted.join("smoke.sqlite");
         success(
@@ -386,6 +436,9 @@ fn desktop_archive_contains_both_executables_and_a_working_cli() {
                 .output()
                 .unwrap(),
         );
+        assert_notice_bundle(
+            &extracted.join("iCatalog.app/Contents/Resources/licenses/craft-libs"),
+        );
     }
     #[cfg(windows)]
     {
@@ -405,6 +458,7 @@ fn desktop_archive_contains_both_executables_and_a_working_cli() {
         assert!(extracted.join("README.txt").is_file());
     }
     assert!(ui.is_file());
+    assert_notice_bundle(&extracted.join("licenses/craft-libs"));
     success(Command::new(&cli).arg("--version").output().unwrap());
     let catalogue = scratch.path().join("smoke.sqlite");
     success(

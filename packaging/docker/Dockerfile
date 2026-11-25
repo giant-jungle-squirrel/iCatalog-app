@@ -6,6 +6,7 @@ LABEL org.opencontainers.image.title="iCatalog" \
       org.opencontainers.image.source="https://github.com/atwright147/iCatalog" \
       org.opencontainers.image.version="$VERSION"
 COPY --chmod=755 icatalog /icatalog
+COPY licenses/ /usr/share/licenses/icatalog/
 COPY --chown=1000:1000 catalogue/ /catalogue/
 COPY --chown=1000:1000 media/ /media/
 USER 1000:1000

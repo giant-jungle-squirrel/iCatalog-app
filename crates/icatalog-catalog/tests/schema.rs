@@ -430,7 +430,9 @@ fn thumbnail_round_trip_and_constraint() {
     let c = Catalog::open_in_memory().unwrap();
     let a = c.insert_asset(&asset("u", "p")).unwrap();
     let t = thumb(a, 1);
+    assert_eq!(c.thumbnail_generator_version(a, 1).unwrap(), None);
     c.insert_thumbnail(&t).unwrap();
+    assert_eq!(c.thumbnail_generator_version(a, 1).unwrap(), Some(1));
     assert_eq!(c.thumbnail(a, 1).unwrap().unwrap(), t);
     assert!(c.thumbnail(a, 2).unwrap().is_none());
     c.insert_thumbnail(&t).unwrap(); // replaces the same (asset_id, size_class)

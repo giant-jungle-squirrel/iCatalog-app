@@ -9,25 +9,25 @@ pub fn show<R>(
     contents: impl FnOnce(&mut egui::Ui) -> R,
 ) -> egui::InnerResponse<R> {
     let stroke = ui.visuals().widgets.noninteractive.bg_stroke;
-    let framed = egui::Frame::NONE
-        .inner_margin(egui::Margin::symmetric(HORIZONTAL_MARGIN, 8))
-        .show(ui, |ui| {
-            ui.set_min_width(ui.available_width());
-            let caption = ui.label(egui::RichText::new(legend).strong());
-            let inner = contents(ui);
-            let bounds = ui.min_rect();
-            ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
-                node.set_role(egui::accesskit::Role::Group);
-                node.set_label(legend);
-                node.set_bounds(egui::accesskit::Rect {
-                    x0: f64::from(bounds.left()),
-                    y0: f64::from(bounds.top()),
-                    x1: f64::from(bounds.right()),
-                    y1: f64::from(bounds.bottom()),
-                });
+    let framed = craft_ui::layout::Section::new(
+        egui::Frame::NONE.inner_margin(egui::Margin::symmetric(HORIZONTAL_MARGIN, 8)),
+    )
+    .show(ui, |ui| {
+        let caption = ui.label(egui::RichText::new(legend).strong());
+        let inner = contents(ui);
+        let bounds = ui.min_rect();
+        ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
+            node.set_role(egui::accesskit::Role::Group);
+            node.set_label(legend);
+            node.set_bounds(egui::accesskit::Rect {
+                x0: f64::from(bounds.left()),
+                y0: f64::from(bounds.top()),
+                x1: f64::from(bounds.right()),
+                y1: f64::from(bounds.bottom()),
             });
-            (caption.rect, inner)
         });
+        (caption.rect, inner)
+    });
     let (caption, inner) = framed.inner;
     let border = framed.response.rect;
     let top = caption.center().y;
