@@ -1109,6 +1109,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-plist"
+version = "0.1.0"
+source = "git+https://github.com/storytold/craft-libs?rev=249a41bd9306a1b34330ac94e596a1a8b881378a#249a41bd9306a1b34330ac94e596a1a8b881378a"
+dependencies = [
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "craft-psd"
 version = "0.1.0"
 source = "git+https://github.com/storytold/craft-libs?rev=249a41bd9306a1b34330ac94e596a1a8b881378a#249a41bd9306a1b34330ac94e596a1a8b881378a"
@@ -2578,6 +2586,7 @@ dependencies = [
  "craft-metadata",
  "craft-ora",
  "craft-pdf",
+ "craft-plist",
  "craft-psd",
  "craft-raw",
  "craft-sqlite",

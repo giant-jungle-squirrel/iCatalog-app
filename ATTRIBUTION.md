@@ -12,6 +12,11 @@ Media or Phase One source code or assets are included.
 | Unicode/ICU data | `icu_locale_core` 2.3.0, through craft-i18n | Unicode License v3, retained | Shared UI locale support. |
 | `craft-sqlite` wire helpers | Same exact craft-libs revision above | MIT OR Apache-2.0; covered by the retained Craft licence texts | Bounded SQLite byte primitives for saved `.clip` canvas PNG extraction (D106); no SQL execution. |
 | `craft-zip` and `craft-xml` | Same exact craft-libs revision above | MIT OR Apache-2.0; covered by the retained Craft licence texts | Bounded ZIP/XML reads for saved `.reb` canvas PNG extraction (D108); no layer rendering or external file access. |
+| `craft-plist` | Same exact craft-libs revision above | MIT OR Apache-2.0; covered by the retained Craft licence texts and upstream attribution | Bounded binary property-list reading for Procreate/ProCraft document geometry; existing craft-zip reads the saved QuickLook PNG (D111). No application code copied. |
+
+D111 normal tests generate original binary plist/ZIP/PNG fixtures. Only the
+owner-authorized ProCraft examples belong in the optional corpus; the private
+third-party Procreate document, reference image and extracted artwork are excluded.
 
 D108 fixtures in `icatalog-media/tests/reb.rs` and `icatalog-engine/tests/reb_import.rs` generate original synthetic pixels/XML/ZIP bytes under this repository’s MIT licence. The supplied REB/export pair stays in the optional sample corpus with unresolved provenance/licensing; see [REB evidence](docs/reb-format.md).
 

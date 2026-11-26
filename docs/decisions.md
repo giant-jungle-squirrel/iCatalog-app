@@ -1342,6 +1342,30 @@ provides standalone extraction/comparison; [PTG evidence](ptg-format.md) records
 layout, hashes and limits. Other versions and native NAS/browser qualification
 remain open; no freshness indicator has been established.
 
+## D111. Saved Procreate and ProCraft QuickLook previews (2026-11-26)
+
+The supplied real Procreate file and ProCraft 0.8.0 `.procreate`/`.procraft` saves
+share a ZIP/binary-keyed-archive/QuickLook PNG envelope. Their layer storage differs,
+so only preview compatibility is established. Extract `QuickLook/Thumbnail.png`
+through bounded craft-zip and craft-plist at the existing pin. Interpret only
+observed document versions 1/2, unit key 0 and orientations 1/4. The saved pixels
+already have display orientation; orientation 4 swaps canvas axes, not PNG pixels.
+Reject ambiguous, missing, unsupported, corrupt and oversized inputs.
+
+Both ProCraft files contain the same 1024 × 683 PNG for a 2880 × 1920 canvas,
+matching their resized export within mean RGBA difference 0.4970/255. The real
+file's 1024 × 576 PNG matches its 1920 × 1080 JPEG reference within 0.6251/255.
+Only the three owner-authorized ProCraft files are committed to the optional
+corpus. The private real document/reference and extracted artwork are excluded;
+ignore rules guard their filenames. No public artwork licence is inferred.
+
+Import/Update/Generate reuse the media adapter. Synthetic hostile-input and engine
+preservation tests do not embed real artwork. `task media:procreate-preview`
+provides byte-exact PNG extraction/comparison; `task test:corpus` verifies the two
+authorized document examples. No layer renderer, new engine command, generator,
+schema or protocol change. [Format evidence](procreate-format.md) records limits;
+other versions, orientations and native NAS/browser qualification remain open.
+
 ## Open questions
 Share-file mode: see the guides. (Samples licensing/commit strategy is resolved: D9.)
 

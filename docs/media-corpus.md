@@ -71,8 +71,16 @@ It checks source/export SHA-256 hashes, byte-exact extracted PNG hash, canvas an
 preview dimensions, full image decoding and the allowed mean RGBA difference
 against a Lanczos3-resized export. Missing corpus data, invalid paths, unknown
 formats and failed expectations return an error. Supported cases are the supplied
-CLIP v1, Rebelle 8.3.4/format-8 and ArtRage Vitae files.
-See [CLIP](clip-format.md), [REB](reb-format.md) and [PTG](ptg-format.md) for sample-specific evidence.
+CLIP v1, Rebelle 8.3.4/format-8, ArtRage Vitae and ProCraft 0.8.0 files.
+See [CLIP](clip-format.md), [REB](reb-format.md), [PTG](ptg-format.md) and
+[Procreate/ProCraft](procreate-format.md) for sample-specific evidence.
+
+Only `ProCraft v080.png`, `ProCraft_v080.procreate` and
+`ProCraft_v080.procraft` are authorized for committing from the Procreate research
+set. The private third-party `Procreate.procreate` and reference `Procreate.jpg`
+(also guard `Procreate.png`) are ignored and must never be staged or copied into
+fixtures. Extracted private artwork stays outside both repositories. The ProCraft
+commit authorization does not assign a public redistribution licence.
 
 The corpus can be absent for builds and normal tests. Publishing the sample
 repository, choosing an artwork licence and adding real-corpus CI are separate

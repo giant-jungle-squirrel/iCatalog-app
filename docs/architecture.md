@@ -217,6 +217,13 @@ inside `icatalog-media`. Only the observed Vitae header/producer and canvas
 geometry are accepted; nested layer/tool images are skipped. No new dependency
 or Craft pin change. [PTG evidence](ptg-format.md) records bounds and validation.
 
+D111 adds `.procreate`/`.procraft` saved QuickLook PNGs through craft-zip and
+craft-plist at the same pin. Only the observed binary keyed-archive document
+versions 1/2, units 0 and orientations 1/4 are interpreted; saved pixels already
+have display orientation. No layer renderer or new engine command is needed.
+[Procreate evidence](procreate-format.md) separates the private real-file
+validation from the owner-authorized ProCraft corpus fixtures.
+
 Thumbnail generator 3 participates in Update's unchanged-file checks. Stored
 preview caching also requires `metadata_raw`'s `preview_generator/jpeg` value to
 match `<generator-version>:<preview-hash>`. Missing/older/mismatched markers or

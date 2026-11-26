@@ -121,7 +121,10 @@ still need a supported fallback. No full layer, vector or page fidelity is promi
 
 Remaining work:
 
-- InDesign and Procreate preview research. D110 implements saved full-canvas
+- InDesign preview research. D111 implements `.procreate`/`.procraft` saved
+  QuickLook PNG extraction for observed document versions 1/2 and orientations
+  1/4; broader versions, orientations and missing-preview files remain open.
+  D110 implements saved full-canvas
   `.ptg` PNG extraction for one observed ArtRage Vitae layout; broader versions,
   missing full-canvas images and layer rendering remain open. D108 implements `.reb` saved
   canvas PNG extraction for the observed format-8 subset, validated with one
@@ -130,7 +133,9 @@ Remaining work:
   versions, multi-canvas/animation files and missing-preview variants remain open.
 - Broader camera and application-version fixtures, including new Affinity generations.
   D107 provides a separate optional sample repository and `task test:corpus`;
-  the corpus checker supports the supplied CLIP v1, Rebelle 8.3.4 and ArtRage Vitae pairs.
+  the corpus checker supports the supplied CLIP v1, Rebelle 8.3.4, ArtRage Vitae
+  and owner-authorized ProCraft 0.8.0 examples. Private third-party Procreate
+  artwork is excluded from commits and fixtures.
   Publishing it and corpus CI remain open.
 - Additional PSD compression/colour modes and format-specific renderers where useful.
 - PDF embedded-thumbnail extraction and broader text/font/scanned/encrypted-file fixtures.

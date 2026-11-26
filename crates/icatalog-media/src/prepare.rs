@@ -82,6 +82,8 @@ pub fn supported_extension(ext: &str) -> bool {
                 | "clip"
                 | "reb"
                 | "ptg"
+                | "procreate"
+                | "procraft"
         )
 }
 
@@ -159,6 +161,14 @@ fn prepare(
             hint,
             Some((preview.canvas_width, preview.canvas_height)),
         )
+    } else if matches!(hint.as_str(), "procreate" | "procraft") {
+        let preview = crate::procreate::extract_preview(bytes)?;
+        source = "procreate_quicklook";
+        (
+            crate::decode_image(&preview.png)?,
+            hint,
+            Some((preview.canvas_width, preview.canvas_height)),
+        )
     } else if hint == "ptg" {
         let preview = crate::ptg::extract_preview(bytes)?;
         source = "ptg_canvas_preview";
@@ -217,6 +227,8 @@ fn prepare(
             | "clip"
             | "reb"
             | "ptg"
+            | "procreate"
+            | "procraft"
             | "psb"
             | "kra"
             | "ora"

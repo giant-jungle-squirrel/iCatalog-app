@@ -22,14 +22,15 @@ are no RAW editing controls or development recipes.
 | Clip Studio Paint `.clip` | Saved `CanvasPreview` PNG from the embedded SQLite database (D106) | Validated with one supplied v1 file; single canvas, observed schema/type/unit only. No layer rendering or animation selection; [format evidence and limits](clip-format.md) |
 | Rebelle `.reb` | Saved root `canvas.png` with canvas geometry from `artwork.xml` (D108) | One supplied 8.3.4/format-8 file validated; units 1, zero/absent safe boundary only. No layer rendering; [evidence and limits](reb-format.md) |
 | ArtRage Vitae `.ptg` | Saved full-canvas PNG from the observed chunk container (D110) | One supplied Vitae file validated; exact observed producer/header and full-canvas geometry only. No layer rendering or thumbnail fallback; [evidence and limits](ptg-format.md) |
+| Procreate `.procreate` / ProCraft `.procraft` | Saved `QuickLook/Thumbnail.png` with displayed canvas geometry from `Document.archive` (D111) | One private real Procreate document and two owner-authorized ProCraft 0.8.0 saves validated; observed document versions 1/2, units 0 and orientations 1/4 only. No layer rendering; [evidence and limits](procreate-format.md) |
 | Affinity `.afphoto`, `.afdesign`, `.afpub`, `.af` | Saved PNG preview recognized by craft-affinity | No layer rendering; acceptance of an extension does not establish coverage of every application generation. Source canvas dimensions remain unknown |
 | PDF / PDF-compatible Illustrator | First-page render, including page crop/rotation, onto white | No embedded `/Thumb` extraction yet. Password-protected documents are unsupported. Reported omitted/budget-limited content rejects the result; unreported fidelity loss remains possible |
 | EPS / older Illustrator | Saved TIFF or EPSI preview | No PostScript execution; source canvas dimensions remain unknown |
 | PhotoCraft / VectorCraft | Saved composite or thumbnail; VectorCraft saved compatible PDF as fallback | Supported upstream envelope versions only; no document/layer renderer |
 | EffectCraft | Envelope recognized, but no usable rendition is currently exposed | Skipped; no animation renderer |
 
-InDesign and Procreate remain planned (D103).
-There is no suitable preview facade for these in the adopted set. Application
+InDesign remains planned (D103).
+There is no suitable preview facade for it in the adopted set. Application
 editor, timeline, docking, GPU and writing APIs are not dependencies merely
 because they exist upstream.
 
@@ -76,6 +77,9 @@ notices are retained in [the notice bundle](../licenses/craft-libs/README.md)
 and included in release packages and container images.
 
 REB uses bounded Craft ZIP/XML reads: 1 MiB XML, 64 MiB saved PNG, 10,000 ZIP entries and 24 million preview pixels; see [REB limits](reb-format.md).
+
+Procreate/ProCraft use bounded Craft ZIP/plist reads: 4 MiB metadata, 64 MiB saved
+PNG, 10,000 ZIP entries and 24 million preview pixels; see [Procreate limits](procreate-format.md).
 
 The adapter caps source bytes at 512 MiB. PDF/Craft documents have a stricter
 64 MiB input cap; Craft JSON is capped at 16 MiB, entries at 32 MiB, total decoded

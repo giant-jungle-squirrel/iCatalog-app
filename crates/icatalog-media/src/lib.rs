@@ -14,6 +14,7 @@ pub mod clip;
 mod color;
 mod craft_documents;
 mod prepare;
+pub mod procreate;
 pub mod ptg;
 pub mod reb;
 pub use prepare::{

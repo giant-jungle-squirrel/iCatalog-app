@@ -144,6 +144,11 @@ tasks:
     cmds:
       - cargo run -q -p icatalog-media --example ptg_preview -- {{.CLI_ARGS}}
 
+  media:procreate-preview:
+    desc: "Extract a saved Procreate/ProCraft QuickLook PNG to a new file; optionally compare an export (-- input.procreate new-output.png [reference.png])"
+    cmds:
+      - cargo run -q -p icatalog-media --example procreate_preview -- {{.CLI_ARGS}}
+
   media:reb-preview:
     desc: "Extract a saved REB PNG to a new file; optionally compare an export (-- input.reb new-output.png [reference.png])"
     cmds:

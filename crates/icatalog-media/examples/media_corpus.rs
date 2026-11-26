@@ -91,6 +91,14 @@ fn check(root: &Path, case: &Case) -> Result<(), Box<dyn Error>> {
                 (preview.preview_width, preview.preview_height),
             )
         }
+        "procreate" | "procraft" => {
+            let preview = icatalog_media::procreate::extract_preview(&source)?;
+            (
+                preview.png,
+                (preview.canvas_width, preview.canvas_height),
+                (preview.preview_width, preview.preview_height),
+            )
+        }
         other => return Err(format!("unsupported corpus format: {other}").into()),
     };
     if content_hash(&png) != format!("sha256:{}", case.preview_sha256) {
