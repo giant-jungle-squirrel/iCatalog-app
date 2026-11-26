@@ -6,6 +6,8 @@ D20 is implemented in HTTP protocol v2, including Collection edits requested in 
 
 ## Model and identity
 
+Multiple-format Smart Collection rules (D109) keep their existing text representation. Update every client and the server before using format lists or extension aliases; older builds retain that text but match it as one literal format and can show different membership. No schema or protocol migration is involved.
+
 Each computer opens a local SQLite copy. `icatalog serve` owns the canonical catalogue on the NAS; `icatalog sync` pushes supported local edits before pulling the latest catalogue. SQLite is never shared directly over SMB/NFS. An unreachable server defers catalogue sync without replacing the local copy.
 
 Catalogue IDs must match. New IDs contain 1–1024 printable ASCII bytes without leading or trailing spaces; internal spaces are valid. The ID stays exact in protocol lines and HTTP headers. A server with an older invalid ID refuses to start rather than serving an unusable snapshot. Assets use their existing stable `uid`. Collections now also have immutable UIDs: migration v7 derives existing IDs deterministically from catalogue ID and numeric collection ID, so independently migrated copies agree; new Collections receive random 128-bit IDs. Numeric Collection IDs remain local database keys and CLI handles; wire membership uses asset UIDs. Concurrently created Collections cannot collide merely because their numeric IDs match.

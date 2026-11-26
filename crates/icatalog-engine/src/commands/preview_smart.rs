@@ -5,8 +5,15 @@ pub(super) fn run(ctx: &Context, params: &Params) -> Result<Outcome> {
     let rules = super::smart_collection::parse(params)?;
     let count = ctx.catalog().count_smart_matches(&rules)?;
     let mut clauses = Vec::new();
+    if rules.format.is_some() {
+        let formats: Vec<_> = rules.formats().map(|value| format!("{value:?}")).collect();
+        if formats.len() == 1 {
+            clauses.push(format!("Format is {}", formats.join("")));
+        } else {
+            clauses.push(format!("Format is any of ({})", formats.join(", ")));
+        }
+    }
     for (prefix, value) in [
-        ("Format is", &rules.format),
         ("Captured on or after", &rules.captured_from),
         ("Captured on or before", &rules.captured_to),
         ("Camera contains", &rules.camera),

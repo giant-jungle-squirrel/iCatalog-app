@@ -482,6 +482,33 @@ fn different_asset_edits_merge_and_idle_sync_has_no_upload_or_generation_change(
 }
 
 #[test]
+fn multiple_format_rules_round_trip_between_replicas() {
+    let dir = temp_dir("multiple-formats");
+    let (server, url) = seed(&dir);
+    let mut a = replica(&server, "a.sqlite", &url);
+    let mut b = replica(&server, "b.sqlite", &url);
+    command(
+        &mut a,
+        "collection",
+        &[
+            ("action", "set-rules"),
+            ("id", "2"),
+            ("format", ".jpg, NEF"),
+        ],
+    );
+    assert!(sync(&mut a, &url).conflicts.is_empty());
+    assert!(sync(&mut b, &url).conflicts.is_empty());
+    let rules = b.catalog().smart_rules(2).unwrap().unwrap();
+    assert_eq!(rules.format.as_deref(), Some(".jpg, NEF"));
+    assert_eq!(b.catalog().collection_assets(2).unwrap(), vec![1, 2]);
+    assert_eq!(b.catalog().count_smart_matches(&rules).unwrap(), 2);
+    assert_eq!(sync(&mut b, &url).action, SyncAction::UpToDate);
+    let nas = Context::open(server).unwrap();
+    assert_eq!(nas.catalog().smart_rules(2).unwrap(), Some(rules));
+    assert_eq!(nas.catalog().collection_assets(2).unwrap(), vec![1, 2]);
+}
+
+#[test]
 fn collection_names_rules_members_and_concurrent_creations_sync_by_uid() {
     let dir = temp_dir("collections");
     let (server, url) = seed(&dir);

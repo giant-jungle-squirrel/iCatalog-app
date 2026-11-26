@@ -4,7 +4,8 @@ use rusqlite::{params, OptionalExtension};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SmartRules {
-    /// Exact format, ignoring ASCII case (for example JPEG or NEF).
+    /// Any listed format, ignoring ASCII case; separate with commas, semicolons
+    /// or spaces. Leading dots and JPG/JPE/TIF extension aliases are accepted.
     pub format: Option<String>,
     /// Inclusive local capture dates, YYYY-MM-DD. Missing dates do not match.
     pub captured_from: Option<String>,
@@ -22,6 +23,11 @@ pub struct SmartRules {
 }
 
 impl SmartRules {
+    /// Individual format alternatives, preserving their spelling for display.
+    pub fn formats(&self) -> impl Iterator<Item = &str> {
+        format_tokens(self.format.as_deref().unwrap_or_default())
+    }
+
     pub fn validate(&self) -> Result<()> {
         let texts = [
             &self.format,
@@ -80,6 +86,32 @@ impl SmartRules {
     }
 }
 
+fn format_tokens(value: &str) -> impl Iterator<Item = &str> {
+    value
+        .split(|c: char| c == ',' || c == ';' || c.is_whitespace())
+        .filter(|value| !value.is_empty())
+}
+
+fn canonical_format(value: &str) -> &str {
+    let value = value.trim_start_matches('.');
+    if value.eq_ignore_ascii_case("jpg") || value.eq_ignore_ascii_case("jpe") {
+        "JPEG"
+    } else if value.eq_ignore_ascii_case("tif") {
+        "TIFF"
+    } else {
+        value
+    }
+}
+
+pub(crate) fn format_matches(asset: &str, rule: &str) -> bool {
+    // Borrow SQLite text and bound work even for directly corrupted rule rows.
+    rule.len() <= 1024
+        && format_tokens(rule).any(|value| {
+            !canonical_format(value).is_empty()
+                && canonical_format(asset).eq_ignore_ascii_case(canonical_format(value))
+        })
+}
+
 fn valid_date(value: &str) -> bool {
     let b = value.as_bytes();
     if b.len() != 10 || b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-') {
@@ -111,7 +143,7 @@ fn valid_date(value: &str) -> bool {
 // These expressions only interpolate trusted SQL. User rule values remain in
 // typed columns; no stored SQL, recursion or per-collection parameter expansion.
 pub(crate) const SMART_MATCH: &str = "
- (sc.format IS NULL OR lower(asset.format) = lower(sc.format))
+ (sc.format IS NULL OR icatalog_format_matches(asset.format, sc.format))
  AND (sc.captured_from IS NULL OR EXISTS (SELECT 1 FROM asset_meta m WHERE m.asset_id=asset.id AND substr(m.captured_local,1,10)>=sc.captured_from))
  AND (sc.captured_to IS NULL OR EXISTS (SELECT 1 FROM asset_meta m WHERE m.asset_id=asset.id AND substr(m.captured_local,1,10)<=sc.captured_to))
  AND (sc.camera IS NULL OR EXISTS (SELECT 1 FROM asset_meta m WHERE m.asset_id=asset.id AND icatalog_contains_ci(coalesce(m.make,'') || ' ' || coalesce(m.model,''),sc.camera)))

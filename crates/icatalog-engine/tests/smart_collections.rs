@@ -158,6 +158,14 @@ fn unsaved_preview_counts_summarizes_and_never_changes_the_catalogue() {
             vec![("format", "NEF"), ("text", "Two")],
             "1 matching item\nFormat is \"NEF\" AND Filename or path contains \"Two\"",
         ),
+        (
+            vec![("format", ".jpg, NEF")],
+            "2 matching items\nFormat is any of (\".jpg\", \"NEF\")",
+        ),
+        (
+            vec![("format", "jpg; nef"), ("min-rating", "5")],
+            "1 matching item\nFormat is any of (\"jpg\", \"nef\") AND Rating is at least 5 out of 5",
+        ),
     ] {
         let mut params = p(&rules);
         params.set("action", "preview-smart");

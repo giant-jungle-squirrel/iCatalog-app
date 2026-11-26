@@ -20,6 +20,88 @@ fn smart(c: &Catalog, rules: SmartRules) -> i64 {
 }
 
 #[test]
+fn format_alternatives_share_preview_membership_counts_and_query_semantics() {
+    let c = fixture();
+    c.connection()
+        .execute_batch(
+            "INSERT INTO asset(id,uid,name,path,format) VALUES
+        (4,'four','Four.tif','/four.tif','TIFF'),
+        (5,'five','Five.png','/five.png','PNG'),
+        (6,'six','Unknown.jpg','/unknown.jpg',NULL);",
+        )
+        .unwrap();
+    let id = c.insert_collection("Formats").unwrap();
+    // Older versions accepted these literals. They must remain readable and
+    // editable, including through collection enumeration used by UI and sync.
+    c.connection()
+        .execute(
+            "INSERT INTO smart_collection(collection_id,format) VALUES(?1, '., ;')",
+            [id],
+        )
+        .unwrap();
+    assert!(c.smart_rules(id).unwrap().is_some());
+    assert_eq!(c.all_collections().unwrap().len(), 1);
+    assert_eq!(c.collection_states().unwrap().len(), 1);
+    assert!(c.collection_assets(id).unwrap().is_empty());
+    for (format, expected) in [
+        ("JPEG", vec![1, 3]),
+        ("jpeg, NEF", vec![1, 2, 3]),
+        (".JpG; .nEf .tif", vec![1, 2, 3, 4]),
+        ("jpe, TIFF, jpeg,", vec![1, 3, 4]),
+        ("NE, JP, %", vec![]),
+        ("PNG, unknown", vec![5]),
+        (", ; ", vec![]),
+        (".", vec![]),
+        ("JPEG, .", vec![1, 3]),
+    ] {
+        let rules = SmartRules {
+            format: Some(format.into()),
+            ..Default::default()
+        };
+        c.set_smart_rules(id, &rules).unwrap();
+        assert_eq!(c.smart_rules(id).unwrap(), Some(rules.clone()));
+        assert_eq!(
+            c.count_smart_matches(&rules).unwrap(),
+            expected.len() as i64
+        );
+        assert_eq!(c.collection_assets(id).unwrap(), expected, "{format}");
+        assert_eq!(
+            c.collection_asset_counts().unwrap(),
+            vec![(id, expected.len() as i64)]
+        );
+        let query = AssetQuery {
+            collection_id: Some(id),
+            ..Default::default()
+        };
+        let mut ids: Vec<_> = c
+            .query_assets(&query)
+            .unwrap()
+            .iter()
+            .map(|a| a.id)
+            .collect();
+        ids.sort_unstable();
+        assert_eq!(ids, expected);
+    }
+    let rules = SmartRules {
+        format: Some("jpg,nef".into()),
+        min_rating: Some(5),
+        ..Default::default()
+    };
+    c.set_smart_rules(id, &rules).unwrap();
+    assert_eq!(c.count_smart_matches(&rules).unwrap(), 1);
+    assert_eq!(c.collection_assets(id).unwrap(), vec![1]);
+    for invalid in ["".to_owned(), "x".repeat(1025), "jpg\nnef".into()] {
+        let bad = SmartRules {
+            format: Some(invalid),
+            ..Default::default()
+        };
+        assert!(c.set_smart_rules(id, &bad).is_err());
+        assert!(c.count_smart_matches(&bad).is_err());
+        assert_eq!(c.smart_rules(id).unwrap(), Some(rules.clone()));
+    }
+}
+
+#[test]
 fn saving_identical_smart_rules_and_name_does_not_advance_sync_state() {
     let c = fixture();
     let rules = SmartRules {

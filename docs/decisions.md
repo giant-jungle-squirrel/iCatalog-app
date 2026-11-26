@@ -1304,6 +1304,26 @@ checker and add `task media:reb-preview`. Evidence, hashes and bounds live in
 publication, layer renderer, schema/protocol change or generator bump. Native
 NAS/browser qualification remains open.
 
+## D109. Multiple formats in Smart Collections (2026-11-26)
+
+The Format field previously compared its whole input as one literal format,
+although its hint showed comma-separated examples. Accept comma-, semicolon- and
+space-separated alternatives, matching any token case-insensitively while still
+ANDing the other rules. Accept leading dots and JPG/JPE → JPEG, TIF → TIFF aliases.
+Continue matching detected catalogue formats rather than filename suffixes.
+Preserve entered text in the existing bounded format column and sync record;
+allow redundant separators and keep previously accepted separator-only or dot-only
+values readable and editable (they match nothing). Existing blank/control/length
+validation remains unchanged.
+
+One catalogue-owned SQLite function serves previews, saved membership, counts
+and queries. The engine summary explicitly says “any of”; desktop help explains
+the separators. No schema migration, dependency or protocol change. Upgrade all
+synced machines before using lists/aliases: earlier versions retain the text but
+interpret it as a single literal format and may show different membership.
+Regression coverage includes aliases, invalid input, AND behavior, GUI editing
+and reopen, and same-version replica/server round trips.
+
 ## Open questions
 Share-file mode: see the guides. (Samples licensing/commit strategy is resolved: D9.)
 

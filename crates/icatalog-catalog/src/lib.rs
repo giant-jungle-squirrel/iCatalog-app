@@ -280,6 +280,17 @@ fn register_text_search(conn: &Connection) -> Result<()> {
     use caseless::default_case_fold_str;
 
     conn.create_scalar_function(
+        "icatalog_format_matches",
+        2,
+        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
+        |ctx| {
+            Ok(match (ctx.get_raw(0).as_str(), ctx.get_raw(1).as_str()) {
+                (Ok(asset), Ok(rule)) => smart::format_matches(asset, rule),
+                _ => false,
+            })
+        },
+    )?;
+    conn.create_scalar_function(
         "icatalog_contains_ci",
         2,
         FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,

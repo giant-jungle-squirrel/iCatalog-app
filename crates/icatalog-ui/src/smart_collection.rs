@@ -197,13 +197,17 @@ impl RuleInputs {
 
 fn field(ui: &mut egui::Ui, caption: &str, value: &mut String, hint: &str) {
     let label = ui.label(caption);
-    ui.add(
-        egui::TextEdit::singleline(value)
-            .hint_text(hint)
-            .char_limit(1024)
-            .desired_width(240.0),
-    )
-    .labelled_by(label.id);
+    let response = ui
+        .add(
+            egui::TextEdit::singleline(value)
+                .hint_text(hint)
+                .char_limit(1024)
+                .desired_width(240.0),
+        )
+        .labelled_by(label.id);
+    if caption == "Format" {
+        response.on_hover_text("Match any listed format or extension, e.g. jpg, png. Separate with commas, semicolons or spaces.");
+    }
     ui.end_row();
 }
 

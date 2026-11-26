@@ -43,7 +43,7 @@ impl Command for Collection {
                 name: "format",
                 required: false,
                 positional: false,
-                doc: "Smart Collection: exact format, ignoring ASCII case (JPEG, NEF, …)",
+                doc: "Smart Collection: any listed format/extension, ignoring ASCII case (e.g. jpg,png); separate with commas, semicolons or spaces",
             },
             ParamSpec {
                 name: "captured-from",

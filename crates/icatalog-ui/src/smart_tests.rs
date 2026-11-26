@@ -495,6 +495,57 @@ fn smart_rules_fit_a_narrow_window_and_all_fields_remain_reachable() {
 }
 
 #[test]
+fn multiple_formats_preview_save_edit_and_reopen() {
+    let fixture = Fixture::new();
+    let c = open_catalogue(&fixture.path()).unwrap();
+    c.catalog()
+        .connection()
+        .execute_batch("UPDATE asset SET format='PNG' WHERE id=2;")
+        .unwrap();
+    drop(c);
+    let mut h = fixture.harness([1100.0, 720.0]);
+    h.get_by_label("New Collection…").click();
+    settle(&mut h);
+    h.get_by_label("Name").type_text("Formats");
+    h.get_by_label("Smart Collection").click();
+    settle(&mut h);
+    replace_rule(&mut h, "Format", "BMP, .png");
+    settle(&mut h);
+    assert!(h.query_by_label("3 matching items").is_some());
+    assert!(h
+        .query_by_label("Format is any of (\"BMP\", \".png\")")
+        .is_some());
+    h.get_by_label("Create").click();
+    settle(&mut h);
+    h.get_by_label("Formats (Smart)").click();
+    settle(&mut h);
+    assert_eq!(h.state().assets.len(), 3);
+    assert_eq!(h.state().collection_counts.get(&1), Some(&3));
+    h.get_by_label("Formats (Smart)").click_secondary();
+    settle(&mut h);
+    h.get_by_label("Edit Rules…").click();
+    settle(&mut h);
+    replace_rule(&mut h, "Format", "jpg; .png");
+    settle(&mut h);
+    assert!(h.query_by_label("1 matching item").is_some());
+    h.get_by_label("Save").click();
+    settle(&mut h);
+    assert_eq!(h.state().assets.len(), 1);
+    assert_eq!(h.state().assets[0].id, 2);
+    drop(h);
+    let c = open_catalogue(&fixture.path()).unwrap();
+    let rules = c.catalog().smart_rules(1).unwrap().unwrap();
+    assert_eq!(rules.format.as_deref(), Some("jpg; .png"));
+    assert_eq!(c.catalog().count_smart_matches(&rules).unwrap(), 1);
+    drop(c);
+    let mut h = fixture.harness([1100.0, 720.0]);
+    h.get_by_label("Formats (Smart)").click();
+    settle(&mut h);
+    assert_eq!(h.state().assets.len(), 1);
+    assert_eq!(h.state().assets[0].id, 2);
+}
+
+#[test]
 fn smart_create_validate_edit_cancel_and_reopen() {
     let fixture = Fixture::new();
     let mut h = fixture.harness([1100.0, 720.0]);
