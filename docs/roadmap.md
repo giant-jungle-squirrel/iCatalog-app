@@ -121,12 +121,15 @@ still need a supported fallback. No full layer, vector or page fidelity is promi
 
 Remaining work:
 
-- ArtRage, Rebelle, InDesign and Procreate preview research. D106 implements saved
-  `.clip` canvas PNG extraction with one supplied v1 sample validated; additional
+- ArtRage, InDesign and Procreate preview research. D108 implements `.reb` saved
+  canvas PNG extraction for the observed format-8 subset, validated with one
+  8.3.4 document/export pair; broader versions and variants remain open. D106
+  implements saved `.clip` canvas PNG extraction with one supplied v1 sample validated; additional
   versions, multi-canvas/animation files and missing-preview variants remain open.
 - Broader camera and application-version fixtures, including new Affinity generations.
   D107 provides a separate optional sample repository and `task test:corpus`;
-  the initial corpus covers the supplied CLIP v1 pair. Publishing it and corpus CI remain open.
+  the corpus checker supports the supplied CLIP v1 and Rebelle 8.3.4 pairs.
+  Publishing it and corpus CI remain open.
 - Additional PSD compression/colour modes and format-specific renderers where useful.
 - PDF embedded-thumbnail extraction and broader text/font/scanned/encrypted-file fixtures.
 - Actual native x86-64/ARM64 musl, container and wasm/browser qualification of the new graph.

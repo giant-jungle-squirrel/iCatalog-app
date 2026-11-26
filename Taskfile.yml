@@ -139,6 +139,11 @@ tasks:
     cmds:
       - cargo run -q -p icatalog-media --example media_corpus -- samples/manifest.toml
 
+  media:reb-preview:
+    desc: "Extract a saved REB PNG to a new file; optionally compare an export (-- input.reb new-output.png [reference.png])"
+    cmds:
+      - cargo run -q -p icatalog-media --example reb_preview -- {{.CLI_ARGS}}
+
   test:engine:
     desc: Test the icatalog-engine crate
     cmds:

@@ -11,6 +11,9 @@ Media or Phase One source code or assets are included.
 | Patched Hayro and Vello PDF backends | craft-libs revision above, root Cargo patches | MIT OR Apache-2.0; retained backend notices | First-page CPU rasterization; embedded Foxit/PDFium fonts and Adobe CMaps use BSD notices, the CMYK profile is CC0. No Poppler/system PDF renderer. |
 | Unicode/ICU data | `icu_locale_core` 2.3.0, through craft-i18n | Unicode License v3, retained | Shared UI locale support. |
 | `craft-sqlite` wire helpers | Same exact craft-libs revision above | MIT OR Apache-2.0; covered by the retained Craft licence texts | Bounded SQLite byte primitives for saved `.clip` canvas PNG extraction (D106); no SQL execution. |
+| `craft-zip` and `craft-xml` | Same exact craft-libs revision above | MIT OR Apache-2.0; covered by the retained Craft licence texts | Bounded ZIP/XML reads for saved `.reb` canvas PNG extraction (D108); no layer rendering or external file access. |
+
+D108 fixtures in `icatalog-media/tests/reb.rs` and `icatalog-engine/tests/reb_import.rs` generate original synthetic pixels/XML/ZIP bytes under this repository’s MIT licence. The supplied REB/export pair stays in the optional sample corpus with unresolved provenance/licensing; see [REB evidence](docs/reb-format.md).
 
 D106 test images and database fixtures in `icatalog-media/tests/clip.rs` and
 `icatalog-engine/tests/clip_import.rs` are generated in Rust from original

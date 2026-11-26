@@ -2582,6 +2582,7 @@ dependencies = [
  "craft-raw",
  "craft-sqlite",
  "craft-tiff",
+ "craft-xml",
  "craft-zip",
  "image",
  "kamadak-exif",

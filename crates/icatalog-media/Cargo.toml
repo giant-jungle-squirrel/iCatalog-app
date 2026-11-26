@@ -6,6 +6,8 @@ description = "iCatalog media decode, metadata extraction and thumbnails"
 license = "MIT"
 
 [dependencies]
+craft-zip = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }
+craft-xml = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "gif", "webp", "bmp", "tiff"] }
 kamadak-exif = "0.6"
 sha2 = "0.10"
@@ -27,4 +29,3 @@ craft-eps = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd93
 serde = { version = "1", features = ["derive"] }
 toml = "1"
 rusqlite = { version = "0.32", features = ["bundled", "serialize"] }
-craft-zip = { git = "https://github.com/storytold/craft-libs", rev = "249a41bd9306a1b34330ac94e596a1a8b881378a" }

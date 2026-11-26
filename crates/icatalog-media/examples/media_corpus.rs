@@ -1,5 +1,5 @@
 //! Optional real-application corpus validation; never part of ordinary unit tests.
-use icatalog_media::{clip::extract_preview, content_hash, decode_rgba};
+use icatalog_media::{content_hash, decode_rgba};
 use serde::Deserialize;
 use std::{
     error::Error,
@@ -60,27 +60,40 @@ fn input(root: &Path, name: &str, hash: &str) -> Result<Vec<u8>, Box<dyn Error>>
 }
 
 fn check(root: &Path, case: &Case) -> Result<(), Box<dyn Error>> {
-    if case.format != "clip" {
-        return Err(format!("unsupported corpus format: {}", case.format).into());
-    }
     let tolerance = case.max_mean_absolute_difference;
     if !tolerance.is_finite() || !(0.0..=255.0).contains(&tolerance) {
         return Err("invalid comparison tolerance".into());
     }
     let source = input(root, &case.source, &case.source_sha256)?;
     let reference = input(root, &case.reference, &case.reference_sha256)?;
-    let preview = extract_preview(&source)?;
-    if content_hash(&preview.png) != format!("sha256:{}", case.preview_sha256) {
+    let (png, source_size, saved_size) = match case.format.as_str() {
+        "clip" => {
+            let preview = icatalog_media::clip::extract_preview(&source)?;
+            (
+                preview.png,
+                (preview.canvas_width, preview.canvas_height),
+                (preview.preview_width, preview.preview_height),
+            )
+        }
+        "reb" => {
+            let preview = icatalog_media::reb::extract_preview(&source)?;
+            (
+                preview.png,
+                (preview.canvas_width, preview.canvas_height),
+                (preview.preview_width, preview.preview_height),
+            )
+        }
+        other => return Err(format!("unsupported corpus format: {other}").into()),
+    };
+    if content_hash(&png) != format!("sha256:{}", case.preview_sha256) {
         return Err("extracted PNG hash differs".into());
     }
     let canvas = (case.canvas_width, case.canvas_height);
     let expected_preview = (case.preview_width, case.preview_height);
-    if (preview.canvas_width, preview.canvas_height) != canvas
-        || (preview.preview_width, preview.preview_height) != expected_preview
-    {
+    if source_size != canvas || saved_size != expected_preview {
         return Err("extracted canvas/preview dimensions differ".into());
     }
-    let pixels = decode_rgba(&preview.png)?;
+    let pixels = decode_rgba(&png)?;
     let reference = decode_rgba(&reference)?;
     if (pixels.width, pixels.height) != expected_preview
         || (reference.width, reference.height) != canvas

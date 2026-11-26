@@ -205,6 +205,11 @@ without executing SQL or opening a database file. Only one observed canvas and
 saved preview are supported; [format evidence](clip-format.md) records the schema,
 limits and v1 sample validation. There is no layer renderer or catalogue migration.
 
+D108 adds `.reb` saved canvas PNGs through bounded craft-zip/craft-xml reads at
+the same pin. Only observed format-8 metadata and saved pixels are interpreted;
+no layer rendering or external file access. [REB evidence](reb-format.md) records
+limits and the supplied 8.3.4 sample comparison.
+
 Thumbnail generator 3 participates in Update's unchanged-file checks. Stored
 preview caching also requires `metadata_raw`'s `preview_generator/jpeg` value to
 match `<generator-version>:<preview-hash>`. Missing/older/mismatched markers or

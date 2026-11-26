@@ -14,6 +14,7 @@ pub mod clip;
 mod color;
 mod craft_documents;
 mod prepare;
+pub mod reb;
 pub use prepare::{
     is_raw_extension, prepare_media, prepare_media_with_orientation, supported_extension,
     PreparedMedia,

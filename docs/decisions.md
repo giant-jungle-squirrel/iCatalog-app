@@ -1287,6 +1287,23 @@ in iCatalog under D9. The real artwork's redistribution licence is not inferred;
 unknown provenance/licensing fields remain explicit in the corpus manifest.
 See [media-corpus.md](media-corpus.md) for local initialisation and update steps.
 
+## D108. Saved REB canvas previews (2026-11-26)
+
+The supplied Rebelle 8.3.4 document (file format 8) contains a saved `canvas.png`
+and canvas geometry in `artwork.xml`. Add bounded extraction with the existing
+craft-zip/craft-xml revision, through Import/Update/Generate. Do not render layers
+or follow embedded paths. Accept the observed format-8/units-1 subset and absent
+or zero safe boundary; reject missing, ambiguous, corrupt and oversized inputs.
+
+The PNG is 1024 × 724 for a 2339 × 1654 canvas; comparison against the supplied
+resized export gives mean RGBA difference 0.9057/255. No wider version coverage or
+freshness detection is claimed. Generated tests cover hostile inputs and
+catalogue annotation/last-good-image preservation. Extend the optional corpus
+checker and add `task media:reb-preview`. Evidence, hashes and bounds live in
+[reb-format.md](reb-format.md). Keep the adapter local as for D106; no upstream
+publication, layer renderer, schema/protocol change or generator bump. Native
+NAS/browser qualification remains open.
+
 ## Open questions
 Share-file mode: see the guides. (Samples licensing/commit strategy is resolved: D9.)
 

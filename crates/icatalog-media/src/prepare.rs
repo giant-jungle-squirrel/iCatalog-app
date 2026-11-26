@@ -80,6 +80,7 @@ pub fn supported_extension(ext: &str) -> bool {
                 | "vectorcraft"
                 | "ecproj"
                 | "clip"
+                | "reb"
         )
 }
 
@@ -149,6 +150,14 @@ fn prepare(
             hint,
             Some((preview.canvas_width, preview.canvas_height)),
         )
+    } else if hint == "reb" {
+        let preview = crate::reb::extract_preview(bytes)?;
+        source = "reb_canvas_preview";
+        (
+            crate::decode_image(&preview.png)?,
+            hint,
+            Some((preview.canvas_width, preview.canvas_height)),
+        )
     } else if hint == "kra" {
         let mut archive = craft_kra::Archive::open(bytes).map_err(error)?;
         let dims = (archive.image().width, archive.image().height);
@@ -197,6 +206,7 @@ fn prepare(
         format.as_str(),
         "psd"
             | "clip"
+            | "reb"
             | "psb"
             | "kra"
             | "ora"
