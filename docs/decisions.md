@@ -1324,6 +1324,24 @@ interpret it as a single literal format and may show different membership.
 Regression coverage includes aliases, invalid input, AND behavior, GUI editing
 and reopen, and same-version replica/server round trips.
 
+## D110. Saved PTG canvas previews (2026-11-26)
+
+The supplied ArtRage Vitae PTG contains a top-level saved canvas PNG distinct
+from its thumbnail and tool/layer images. Add bounded extraction through the
+existing Import/Update/Generate adapter. Accept only the observed header bytes,
+Vitae producer record and a full-canvas PNG; reject ambiguous, truncated,
+oversized or missing renditions. Do not render layers or substitute tool images.
+
+The 1440 × 876 saved PNG matches the supplied export with mean absolute RGBA
+difference 0.0646/255. craft-libs main `39c7c75c52aca67716e5b4bb46dd1196ae1943cc`
+has no ArtRage reader; keep this small adapter local following D106/D108, with
+any upstream contribution separate. No dependency, generator, schema or protocol
+change. Synthetic media/engine regressions and the optional corpus case cover
+extraction and preserved annotations/last good pixels. `task media:ptg-preview`
+provides standalone extraction/comparison; [PTG evidence](ptg-format.md) records
+layout, hashes and limits. Other versions and native NAS/browser qualification
+remain open; no freshness indicator has been established.
+
 ## Open questions
 Share-file mode: see the guides. (Samples licensing/commit strategy is resolved: D9.)
 

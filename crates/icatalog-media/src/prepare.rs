@@ -81,6 +81,7 @@ pub fn supported_extension(ext: &str) -> bool {
                 | "ecproj"
                 | "clip"
                 | "reb"
+                | "ptg"
         )
 }
 
@@ -158,6 +159,14 @@ fn prepare(
             hint,
             Some((preview.canvas_width, preview.canvas_height)),
         )
+    } else if hint == "ptg" {
+        let preview = crate::ptg::extract_preview(bytes)?;
+        source = "ptg_canvas_preview";
+        (
+            crate::decode_image(&preview.png)?,
+            hint,
+            Some((preview.canvas_width, preview.canvas_height)),
+        )
     } else if hint == "kra" {
         let mut archive = craft_kra::Archive::open(bytes).map_err(error)?;
         let dims = (archive.image().width, archive.image().height);
@@ -207,6 +216,7 @@ fn prepare(
         "psd"
             | "clip"
             | "reb"
+            | "ptg"
             | "psb"
             | "kra"
             | "ora"

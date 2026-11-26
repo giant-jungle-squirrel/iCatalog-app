@@ -212,6 +212,11 @@ the same pin. Only observed format-8 metadata and saved pixels are interpreted;
 no layer rendering or external file access. [REB evidence](reb-format.md) records
 limits and the supplied 8.3.4 sample comparison.
 
+D110 adds `.ptg` saved full-canvas PNGs via a bounded top-level chunk reader
+inside `icatalog-media`. Only the observed Vitae header/producer and canvas
+geometry are accepted; nested layer/tool images are skipped. No new dependency
+or Craft pin change. [PTG evidence](ptg-format.md) records bounds and validation.
+
 Thumbnail generator 3 participates in Update's unchanged-file checks. Stored
 preview caching also requires `metadata_raw`'s `preview_generator/jpeg` value to
 match `<generator-version>:<preview-hash>`. Missing/older/mismatched markers or

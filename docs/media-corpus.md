@@ -71,8 +71,8 @@ It checks source/export SHA-256 hashes, byte-exact extracted PNG hash, canvas an
 preview dimensions, full image decoding and the allowed mean RGBA difference
 against a Lanczos3-resized export. Missing corpus data, invalid paths, unknown
 formats and failed expectations return an error. Supported cases are the supplied
-CLIP v1 and Rebelle 8.3.4/format-8 files.
-See [CLIP](clip-format.md) and [REB](reb-format.md) for sample-specific evidence.
+CLIP v1, Rebelle 8.3.4/format-8 and ArtRage Vitae files.
+See [CLIP](clip-format.md), [REB](reb-format.md) and [PTG](ptg-format.md) for sample-specific evidence.
 
 The corpus can be absent for builds and normal tests. Publishing the sample
 repository, choosing an artwork licence and adding real-corpus CI are separate

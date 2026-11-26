@@ -39,6 +39,7 @@ A root `Taskfile.yml` ([go-task](https://taskfile.dev)) wraps the common command
 - `task cli:run -- <args>`: run the `icatalog` CLI, e.g. `task cli:run -- init my.sqlite` or `task cli:run -- collection my.sqlite list`.
 - `task cli:clone -- local.sqlite --url http://nas:8080`: initialise a new local replica from the server.
 - `task cli:previews -- <catalogue> status|generate|external|embed`: generate and manage preview storage.
+- `task media:ptg-preview -- input.ptg new-output.png [export.png]`: extract a saved PTG canvas PNG to a new file and optionally compare an export; [format evidence](ptg-format.md).
 - `task media:reb-preview -- input.reb new-output.png [export.png]`: extract a saved REB PNG to a new file and optionally compare an export; [format evidence](reb-format.md).
 - `task media:clip-preview -- input.clip new-output.png [export.png]`: developer corpus check; extract the saved PNG without overwriting an existing file and optionally compare a full-size export. See [CLIP format evidence](clip-format.md). Runtime import uses the existing commands.
 - `task test:corpus`: verify real application samples from the optional pinned `samples/` submodule. No downloads; absent samples are an error. This is separate from `task ci`; [local setup and updates](media-corpus.md).
