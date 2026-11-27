@@ -165,3 +165,8 @@ Grid/List icon controls. Fonts, command paths and the Craft pin remain unchanged
 D114 extends the desktop styling to the Folders hierarchy: unboxed disclosure
 chevrons, original monochrome icons and aligned branch/leaf indentation, retaining
 separate expansion/selection targets and keyboard controls.
+
+D116 identifies Smart Collections with the bundled monochrome sparkle icon in
+place of the visible `(Smart)` suffix. Accessible names and tooltips retain the
+type, and member counts keep their reserved space. Manual Collections use a
+matching bundled briefcase icon.

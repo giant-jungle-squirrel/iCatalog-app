@@ -1491,3 +1491,26 @@ Validation: `task ci` passed, including 161 headless UI tests. All 36 changed/ne
 screenshots were inspected, including filled-search dark/light views;
 `task ui:visual` passed with unchanged tolerances. Both native macOS smoke tests
 passed. No Windows/Linux native runtime or wasm qualification is claimed.
+
+
+## D116 — Collection type icons (2026-11-27)
+
+Replace the visible `(Smart)` suffix in Collection rows with a monochrome
+sparkle icon, following the owner's reference. Use U+2728 from the existing
+bundled symbol-font stack, tinted with the row's text colour in both themes.
+Use a 16-point glyph and reserved slot before the name, keeping the independent
+member count slot at the right. Manual Collection rows use the bundled U+1F4BC
+briefcase glyph in the same slot, at the same size and tint.
+
+The icon is decorative within the existing row target. Accessible names retain
+`(Smart)` and hover text retains the full name and Smart Collection type.
+Selection, right-click actions, double-click editing and drop restrictions are
+unchanged. No new SVG/font assets, dependencies, command or data changes.
+Tests verify bundled glyph coverage, absence of the painted suffix, accessible
+names and long-name/icon/count separation in both themes at native scales.
+
+Validation: `task ci` passed, including 162 headless UI tests covering both
+glyphs, themes and native scales. All seven Smart Collection screenshots and
+13 changed/new manual Collection screenshots were inspected; `task ui:visual`
+passed with unchanged tolerances. Both native macOS smoke tests passed for the
+initial sparkle change; they were not repeated for the icon-only refinements.

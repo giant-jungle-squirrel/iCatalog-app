@@ -1527,23 +1527,24 @@ impl App {
                             .get(&collection.id)
                             .copied()
                             .unwrap_or(0);
-                        let display_name = if collection.rules.is_some() {
-                            format!("{} (Smart)", collection.name)
-                        } else {
-                            collection.name.clone()
-                        };
-                        let row = collection_row(ui, &display_name, count, selected)
-                            .response
-                            .on_hover_text(format!(
-                                "{} ({} {})",
-                                collection.name,
-                                if collection.rules.is_some() {
-                                    "Smart Collection"
-                                } else {
-                                    "Collection"
-                                },
-                                collection.id
-                            ));
+                        let row = collection_row(
+                            ui,
+                            &collection.name,
+                            count,
+                            selected,
+                            collection.rules.is_some(),
+                        )
+                        .response
+                        .on_hover_text(format!(
+                            "{} ({} {})",
+                            collection.name,
+                            if collection.rules.is_some() {
+                                "Smart Collection"
+                            } else {
+                                "Collection"
+                            },
+                            collection.id
+                        ));
                         if row.double_clicked() && self.can_edit() {
                             double_clicked = Some(collection.id);
                             if let Some(rules) = &collection.rules {
@@ -2364,12 +2365,18 @@ impl App {
     }
 }
 
-/// A single clickable row, with fixed count space and a shrinking name.
+/// A monochrome sparkle from the already-bundled symbol fonts.
+const SMART_COLLECTION_ICON: &str = "✨";
+/// A monochrome briefcase from the same bundled symbol fonts.
+const MANUAL_COLLECTION_ICON: &str = "💼";
+
+/// A single clickable row, with fixed icon/count space and a shrinking name.
 fn collection_row(
     ui: &mut egui::Ui,
     name: &str,
     count: i64,
     selected: bool,
+    smart: bool,
 ) -> egui::WidgetAtomResponse {
     let mut classes = egui::class::Classes::default();
     if selected {
@@ -2384,27 +2391,51 @@ fn collection_row(
         ui.painter()
             .layout_no_wrap(count.to_string(), text_style.font_id, text_style.color);
     let count_id = egui::IdSalt::new("collection_count");
-    let name = egui::Atom {
+    let icon_id = egui::IdSalt::new("collection_icon");
+    let name_atom = egui::Atom {
         id: Some(egui::IdSalt::new("collection_name")),
         ..egui::Atom::from(name)
     };
-    let row = egui::Button::selectable(
-        selected,
-        (
-            name,
-            egui::Atom::grow(),
-            egui::Atom::custom(count_id, count_text.size()),
-        ),
-    )
-    .min_size(egui::vec2(
-        ui.available_width(),
-        ui.spacing().interact_size.y,
-    ))
-    .truncate()
-    .atom_ui(ui);
+    let mut atoms = Vec::with_capacity(4);
+    atoms.push(egui::Atom::custom(icon_id, egui::vec2(16.0, 16.0)));
+    atoms.extend([name_atom, egui::Atom::grow()]);
+    atoms.push(egui::Atom::custom(count_id, count_text.size()));
+    let row = egui::Button::selectable(selected, egui::Atoms::from(atoms))
+        .min_size(egui::vec2(
+            ui.available_width(),
+            ui.spacing().interact_size.y,
+        ))
+        .truncate()
+        .atom_ui(ui);
+    if let Some(rect) = row.rect(icon_id) {
+        ui.painter().text(
+            rect.center(),
+            egui::Align2::CENTER_CENTER,
+            if smart {
+                SMART_COLLECTION_ICON
+            } else {
+                MANUAL_COLLECTION_ICON
+            },
+            egui::FontId::proportional(16.0),
+            text_style.color,
+        );
+    }
     if let Some(rect) = row.rect(count_id) {
         ui.painter().galley(rect.min, count_text, text_style.color);
     }
+    // Keep the type in the accessible name, without painting the old suffix.
+    row.response.widget_info(|| {
+        egui::WidgetInfo::selected(
+            egui::Role::Button,
+            ui.is_enabled(),
+            selected,
+            if smart {
+                format!("{name} (Smart)")
+            } else {
+                name.to_owned()
+            },
+        )
+    });
     row
 }
 

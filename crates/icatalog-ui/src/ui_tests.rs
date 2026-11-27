@@ -1434,6 +1434,71 @@ fn interaction_drag_assets_to_collections_in_grid_and_list() {
 }
 
 #[test]
+fn collection_markers_use_bundled_glyphs_and_preserve_accessible_names() {
+    for (smart, icon) in [
+        (false, MANUAL_COLLECTION_ICON),
+        (true, SMART_COLLECTION_ICON),
+    ] {
+        for theme in [egui::Theme::Dark, egui::Theme::Light] {
+            for scale in [1.0, 1.5, 2.0] {
+                for selected in [false, true] {
+                    let name = "A long Collection name that truncates";
+                    let accessible_name = if smart {
+                        format!("{name} (Smart)")
+                    } else {
+                        name.to_owned()
+                    };
+                    let mut h = Harness::builder()
+                        .with_size([160.0, 80.0])
+                        .with_theme(theme)
+                        .with_pixels_per_point(scale)
+                        .build_ui_state(
+                            |ui, rects| {
+                                let row = collection_row(ui, name, 12_345, selected, smart);
+                                *rects = Some((
+                                    row.rect(egui::IdSalt::new("collection_icon")).unwrap(),
+                                    row.rect(egui::IdSalt::new("collection_name")).unwrap(),
+                                    row.rect(egui::IdSalt::new("collection_count")).unwrap(),
+                                    row.response.rect,
+                                ));
+                            },
+                            None::<(egui::Rect, egui::Rect, egui::Rect, egui::Rect)>,
+                        );
+                    h.run();
+                    assert!(h.ctx.fonts_mut(
+                        |fonts| fonts.has_glyphs(&egui::FontId::proportional(16.0), icon,)
+                    ));
+                    let (icon_rect, text, count, row) = h.state().unwrap();
+                    assert!(icon_rect.right() < text.left());
+                    assert!(text.right() < count.left());
+                    assert!(row.contains_rect(icon_rect) && row.contains_rect(count));
+                    assert_eq!(h.get_by_label(&accessible_name).rect(), row);
+                    fn check_text(shape: &egui::Shape, icon: &str, saw_icon: &mut bool) {
+                        match shape {
+                            egui::Shape::Text(text) => {
+                                assert!(!text.galley.text().contains("(Smart)"));
+                                *saw_icon |= text.galley.text() == icon;
+                            }
+                            egui::Shape::Vec(shapes) => {
+                                for shape in shapes {
+                                    check_text(shape, icon, saw_icon);
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    let mut saw_icon = false;
+                    for shape in &h.output().shapes {
+                        check_text(&shape.shape, icon, &mut saw_icon);
+                    }
+                    assert!(saw_icon);
+                }
+            }
+        }
+    }
+}
+
+#[test]
 fn collection_count_space_keeps_long_names_separate_from_counts() {
     for width in [160.0, 220.0] {
         for selected in [false, true] {
@@ -1444,7 +1509,7 @@ fn collection_count_space_keeps_long_names_separate_from_counts() {
                     .with_size([width, 80.0])
                     .build_ui_state(
                         |ui, rects| {
-                            let row = collection_row(ui, name, count, selected);
+                            let row = collection_row(ui, name, count, selected, false);
                             *rects = Some((
                                 row.rect(egui::IdSalt::new("collection_name")).unwrap(),
                                 row.rect(egui::IdSalt::new("collection_count")).unwrap(),
@@ -2324,6 +2389,12 @@ fn visual_snapshots() {
     collections.run();
     collections.snapshot("catalogue-collections");
     results.extend(collections.take_snapshot_results());
+    let mut collections_light =
+        fixture.harness_with_display([800.0, 600.0], 1.0, egui::Theme::Light);
+    collections_light.event(egui::Event::PointerGone);
+    collections_light.run();
+    collections_light.snapshot("catalogue-collections-light");
+    results.extend(collections_light.take_snapshot_results());
     collections.get_by_label("New Collection…").click();
     settle(&mut collections);
     collections.get_by_label("Name").type_text("Summer holiday");
@@ -2585,6 +2656,10 @@ fn visual_snapshots() {
     results.extend(smart.take_snapshot_results());
     let mut rules_light =
         smart_fixture.harness_with_display([800.0, 600.0], 1.0, egui::Theme::Light);
+    rules_light.event(egui::Event::PointerGone);
+    rules_light.run();
+    rules_light.snapshot("catalogue-smart-light");
+    results.extend(rules_light.take_snapshot_results());
     rules_light
         .get_by_label("Highly rated (Smart)")
         .click_secondary();

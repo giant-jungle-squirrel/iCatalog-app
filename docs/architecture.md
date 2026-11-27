@@ -324,3 +324,10 @@ The UI-only `search_control` helper (D115) groups the browser TextEdit and Go
 button, reserving field padding for an accessible Clear search icon button. It
 reports submit/clear intent to the existing shell refresh path; it owns no query
 logic. Long text scrolls within the edit area, and clearing restores edit focus.
+
+Smart Collection rows use the already-bundled monochrome sparkle glyph as a
+decorative marker (D116); manual Collections use a bundled briefcase glyph.
+A 16-point icon sits at the left before the name for both types;
+fixed icon/count slots leave the name free to truncate. The visible
+`(Smart)` suffix is removed; accessible row names and
+full-name/type tooltips retain the distinction. No model or command change.
