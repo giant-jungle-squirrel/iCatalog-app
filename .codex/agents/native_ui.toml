@@ -15,6 +15,10 @@ Preserve pending-write guards, retained drafts on failure, command error reporti
 keyboard access and accessible labels. Check narrow windows, both themes and
 1x/1.5x/2x display scales where relevant. Never panic on hostile stored values.
 Use synthetic/public-domain fixtures, never personal photos or catalogues.
+For a visual reference, identify the exact application, screen, version or commit,
+theme and relevant font family, weight, width, size and scaling before matching it;
+distinguish sibling products and report deliberate differences. Verify font asset
+licences, provenance and packaging notices when adding or changing bundled fonts.
 For visual changes, compare screenshots with task ui:visual. Regenerate only intended
 baselines with task ui:visual:update and inspect every changed image; never loosen
 tolerances or regenerate baselines merely to hide a failing comparison.

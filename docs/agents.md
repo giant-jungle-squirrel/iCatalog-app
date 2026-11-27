@@ -1,12 +1,13 @@
 # iCatalog development agents
 
-Five project-scoped Codex agents are defined in [`.codex/agents/`](../.codex/agents/).
+Six project-scoped Codex agents are defined in [`.codex/agents/`](../.codex/agents/).
 They are reusable development roles, invoked for a task. They do not run in the
 background, select backlog work, or add an AI dependency to iCatalog.
 
 | Agent name | Use for | Main area |
 |---|---|---|
 | `legacy_format` | Clean-room format research, byte evidence, parser fixes and malformed-input regressions | `ivc-file-research/` |
+| `media_formats` | Creative/media format evidence, saved previews, bounded decoding and synthetic regressions | `icatalog-media` and assigned engine tests |
 | `catalogue_sync` | SQLite migrations, transactions, revision compatibility, sync conflicts and recovery | Catalogue, engine and sync crates |
 | `native_ui` | Native egui interaction, accessibility, layout and visual checks | `crates/icatalog-ui/` |
 | `release_deployment` | Desktop/NAS packaging, Docker/Compose and CI validation | `packaging/`, release workflows and assigned tasks |
@@ -31,6 +32,9 @@ if the current session has not discovered them. Ask for an agent by its name, fo
 > Have legacy_format investigate one UNKNOWN field in the format specification.
 > Return sample-byte evidence and a proposed interpretation before changing the parser.
 
+> Have media_formats investigate a creative document's saved preview using authorized
+> samples, then cover supported and hostile cases with synthetic fixtures.
+
 > Implement Docker/Compose packaging with release_deployment, then have reviewer
 > examine persistence, permissions and restart behaviour using disposable data.
 
@@ -53,7 +57,7 @@ versions or promise planned features.
 
 - Delegate when independent work or a separate review materially helps. Usually
   use one or two specialists; keep small fixes in the main conversation. Having
-  five roles does not mean running five agents at once.
+  six roles does not mean running six agents at once.
 - Give every assignment a goal, acceptance criteria, permitted files, dependencies
   and expected checks. Resolve overlapping writes before starting implementation.
   Keep root manifests, registries, `Taskfile.yml`, shared docs and devlog with the

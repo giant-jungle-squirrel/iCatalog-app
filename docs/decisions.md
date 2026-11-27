@@ -1641,3 +1641,15 @@ assertions. Independent visual review covered all 49 refreshed screenshots,
 including grouped rules, expanded security, metadata and Retina List. Snapshot
 tolerances are unchanged. Native Linux/Windows, container runtime and wasm were
 not requalified by this typography change.
+
+
+## D120 — Media-format agent and UI reference checks (2026-11-27)
+
+Add the on-demand `media_formats` role for creative document previews, bounded
+decoding, evidence, synthetic fixtures and optional corpus handling, distinct from
+legacy catalogue research. Preserve private artwork and distinguish observed
+saved previews from rendered content. Extend `native_ui` to identify the exact
+reference application, screen, version, theme and typography before matching,
+and to verify bundled-font provenance, licences and packaging notices. Existing
+coordination, review, safety and final-check rules remain in force. No new skill,
+product dependency or command surface is introduced.
