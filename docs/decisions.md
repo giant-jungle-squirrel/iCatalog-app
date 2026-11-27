@@ -1514,3 +1514,54 @@ glyphs, themes and native scales. All seven Smart Collection screenshots and
 13 changed/new manual Collection screenshots were inspected; `task ui:visual`
 passed with unchanged tolerances. Both native macOS smoke tests passed for the
 initial sparkle change; they were not repeated for the icon-only refinements.
+
+
+## D117 — Grouped AND/OR Smart Collections (2026-11-27)
+
+The owner needs Paintings to include PTG/REB/CLIP assets OR assets with keyword
+painting, while other collections require Format AND Keyword. Use a native
+row/group editor with Add Rule/Add Group and All (AND)/Any (OR) at every group.
+All existing fields can repeat and nest; new groups default to All. Name,
+live preview and actions sit outside the scrolling editor. Incomplete rows and
+empty groups are errors. NOT and new comparison operators remain out of scope.
+
+The L1 typed expression model and normalized schema-v9 nodes share one bounded
+SQL/aggregate evaluator for previews, membership, counts and mixed unions. No
+stored SQL, per-asset JSON parsing or materialized membership is introduced.
+Limits: 128 nodes, eight group levels, 64 KiB encoded expression, 1024-byte rule
+strings. Existing field matching semantics remain intact. Legacy CLI options
+retain AND behavior; `--rules-json` supplies grouped rules, and
+`collection rules --output json` exports a reusable expression.
+
+Existing rules migrate to equivalent All groups, preserving identities,
+revisions and baseline bytes. Migration is atomic; no-op saves do not advance
+revision/generation. Changed rules and optional rename remain transactional.
+A compatible flat representation is retained in Rust and the sync codec;
+nonrepresentable expressions use Collection record kind 4 within protocol v2.
+Old baselines decode without rewriting. Older apps reject schema v9 and older
+servers reject unsupported uploads instead of dropping conditions. Grouped
+conflicts choose the whole Rules expression, with Name independent; applicable
+legacy durable field choices continue to work.
+
+
+Read-only v6–v8 recovery backups use a connection-local TEMP node view; opening
+them does not migrate or modify their files. A v9 file with missing nodes/tables
+remains an error. Full grouped Rules details are available in conflict dialogs
+so a differing condition beyond the short preview can be inspected before
+choosing a version.
+
+
+Pending `snapshot_ready` recovery defers Context migration until the recorded
+file generation/digest have been verified and the journal finalized. Main-file
+handles remain read-only during that interval, including replacement reopens;
+normal migration resumes after successful recovery. An unreadable companion
+also prevents migration until its state can be inspected safely.
+
+Validation: `task ci` passed formatting, workspace Clippy/tests (including 168
+headless UI tests) and the patched HTTP tests. `task ui:visual` passed after
+reviewing the six intended changed/new screenshots. Both native macOS smoke
+tests and `task test:scale` (10,000 generated images and large snapshot sync)
+passed. Independent review findings were resolved, including read-only legacy
+backup browsing, interrupted v8 recovery, complete conflict details and
+whitespace-preserving editor round trips. No native Linux/Windows/NAS or wasm
+qualification is claimed for this change.

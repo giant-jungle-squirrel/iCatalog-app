@@ -21,6 +21,18 @@ pub fn command_ids() -> Vec<&'static str> {
 /// Run a command by id.
 pub fn dispatch(ctx: &mut Context, id: &str, params: &Params) -> Result<Outcome> {
     let cmd = find_command(id).ok_or_else(|| EngineError::UnknownCommand(id.to_string()))?;
+    let read_only = matches!(id, "open" | "status" | "list" | "find" | "preview")
+        || (id == "collection"
+            && matches!(
+                params.get("action"),
+                Some("list" | "rules" | "show" | "preview-smart")
+            ))
+        || (id == "previews" && params.get("action") == Some("status"));
+    if ctx.migrations_deferred() && !read_only {
+        return Err(EngineError::Unsupported(
+            "sync recovery is pending; inspect sync-resolve list and recover before editing".into(),
+        ));
+    }
     if !cmd.enabled(ctx) {
         return Err(EngineError::Unsupported(format!(
             "command '{id}' is not available for this catalogue"

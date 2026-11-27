@@ -686,12 +686,12 @@ fn migrations_apply_once_and_idempotent() {
     {
         let c = Catalog::open(&p).unwrap();
         c.insert_catalogue("mig", "2026-11-11T00:00:00Z").unwrap();
-        assert_eq!(c.schema_version().unwrap(), 8);
-        assert_eq!(count(&c, "schema_migrations"), 8);
+        assert_eq!(c.schema_version().unwrap(), 9);
+        assert_eq!(count(&c, "schema_migrations"), 9);
     }
     let c = Catalog::open(&p).unwrap();
-    assert_eq!(c.schema_version().unwrap(), 8);
-    assert_eq!(count(&c, "schema_migrations"), 8);
+    assert_eq!(c.schema_version().unwrap(), 9);
+    assert_eq!(count(&c, "schema_migrations"), 9);
     drop(c);
     let _ = std::fs::remove_file(&p);
 }
@@ -720,7 +720,7 @@ fn invalid_and_newer_versions_refused() {
         c.insert_catalogue("newer", "2026-11-11T00:00:00Z").unwrap();
         c.connection()
             .execute(
-                "INSERT INTO schema_migrations (version, applied_utc) VALUES (9, 'x')",
+                "INSERT INTO schema_migrations (version, applied_utc) VALUES (10, 'x')",
                 [],
             )
             .unwrap();
@@ -731,14 +731,14 @@ fn invalid_and_newer_versions_refused() {
     assert!(matches!(
         error,
         CatalogError::NewerSchema {
-            found: 9,
-            supported: 8
+            found: 10,
+            supported: 9
         }
     ));
     assert_eq!(
         error.to_string(),
         format!(
-            "catalogue schema version 9 is newer than supported version 8; update {}",
+            "catalogue schema version 10 is newer than supported version 9; update {}",
             icatalog_catalog::APP_NAME
         )
     );

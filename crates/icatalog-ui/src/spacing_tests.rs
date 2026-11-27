@@ -150,22 +150,14 @@ fn rename_and_edit_rules_put_name_beside_its_field_and_align_rule_columns() {
                 assert!(field.left() - label.right() >= 15.5);
                 assert!(field.right() < 800.0 && field.top() >= 0.0);
                 if edit_rules {
-                    assert!((field.left() - h.get_by_label("Format").rect().left()).abs() < 0.5);
                     let rules = h.get(By::new().label("Rules").role(egui::accesskit::Role::Group));
                     let bounds = rules.rect();
                     assert!(field.bottom() < bounds.top());
                     for caption in [
-                        "Match all filled rules. Blank fields match any value.",
-                        "Format",
-                        "Captured From",
-                        "Captured To",
-                        "Camera Contains",
-                        "Lens Contains",
+                        "Combine rules with All (AND) or Any (OR).",
                         "Minimum Rating",
-                        "Maximum Rating",
-                        "Label Number",
-                        "Keyword",
-                        "Filename or Path Contains",
+                        "Add Rule",
+                        "Add Group",
                     ] {
                         let child = rules.get_by_label(caption);
                         assert!(bounds.contains_rect(child.rect()), "{caption}");
@@ -259,7 +251,6 @@ fn padded_collection_dialogs_fit_and_keep_label_value_columns_separate() {
             settle(&mut h);
             h.get_by_label("Smart Collection").click();
             settle(&mut h);
-            let mut previous_bottom = 0.0;
             for label in [
                 "Format",
                 "Captured From",
@@ -272,17 +263,15 @@ fn padded_collection_dialogs_fit_and_keep_label_value_columns_separate() {
                 "Keyword",
                 "Filename or Path Contains",
             ] {
+                add_smart_rule(&mut h, label);
                 let field = h.get_by_label(label).rect();
-                let caption = h
-                    .get(By::new().label(label).role(egui::accesskit::Role::Label))
-                    .rect();
+                let selector = h.get_by_label("Field for rule 1.1").rect();
                 assert!(
-                    field.left() - caption.right() >= 15.5,
-                    "{label}: {caption:?} {field:?}"
+                    field.left() - selector.right() >= 3.5,
+                    "{label}: {selector:?} {field:?}"
                 );
-                assert!(field.top() - previous_bottom >= 3.5, "{label}: {field:?}");
                 assert!(field.right() < 800.0 && field.bottom() < 600.0);
-                previous_bottom = field.bottom();
+                remove_smart_rule(&mut h, label);
             }
             for label in ["Name", "Cancel", "Create"] {
                 let rect = h.get_by_label(label).rect();

@@ -5,8 +5,8 @@
 use icatalog_engine::{
     Command, Context, EngineError, Outcome, ParamSpec, Params, Result as EngineResult,
     SyncCheckResult, SyncCheckStatus, SyncChoice, SyncConflict, SyncEntity, SyncEntityKind,
-    SyncFieldConflict, SyncOutcome, SyncPhase, SyncProgress, SyncResolveResult, SyncSharedField,
-    SyncValue,
+    SyncFieldConflict, SyncOutcome, SyncPhase, SyncProgress, SyncResolveResult, SyncRules,
+    SyncSharedField, SyncValue,
 };
 
 use crate::client::{self, SyncAction, SyncReport};
@@ -42,6 +42,13 @@ pub fn command_ids() -> Vec<&'static str> {
 pub fn dispatch_guarded(ctx: &mut Context, id: &str, params: &Params) -> EngineResult<Outcome> {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let cmd = find_command(id).ok_or_else(|| EngineError::UnknownCommand(id.to_string()))?;
+        if ctx.migrations_deferred()
+            && (id == "serve" || (id == "sync" && params.get("preview").is_some()))
+        {
+            return Err(EngineError::Unsupported(
+                "sync recovery is pending; inspect sync-resolve list and recover before serving this catalogue or fetching previews".into(),
+            ));
+        }
         if !cmd.enabled(ctx) {
             return Err(EngineError::Unsupported(format!(
                 "command '{id}' is not available for this catalogue"
@@ -630,23 +637,40 @@ fn apply_field_choice(
                     "Smart Collection rules cannot be merged across a type conversion".into(),
                 ));
             };
+            if field == "rules" {
+                *server_rules = local_rules.clone();
+                return Ok(());
+            }
+            // Persisted pre-group recovery sessions keep their field choices
+            // only when both drafts still have the exact legacy shape.
+            let Some(mut merged) = server_rules.legacy_rules() else {
+                return Err(EngineError::Unsupported(
+                    "choose the complete Rules value for grouped Smart Collection conflicts".into(),
+                ));
+            };
+            let Some(local_rules) = local_rules.legacy_rules() else {
+                return Err(EngineError::Unsupported(
+                    "legacy rule-field choices cannot be applied to grouped rules".into(),
+                ));
+            };
             match field {
-                "format" => server_rules.format = local_rules.format.clone(),
-                "captured_from" => server_rules.captured_from = local_rules.captured_from.clone(),
-                "captured_to" => server_rules.captured_to = local_rules.captured_to.clone(),
-                "camera" => server_rules.camera = local_rules.camera.clone(),
-                "lens" => server_rules.lens = local_rules.lens.clone(),
-                "min_rating" => server_rules.min_rating = local_rules.min_rating,
-                "max_rating" => server_rules.max_rating = local_rules.max_rating,
-                "label" => server_rules.label = local_rules.label,
-                "keyword" => server_rules.keyword = local_rules.keyword.clone(),
-                "text" => server_rules.text = local_rules.text.clone(),
+                "format" => merged.format = local_rules.format.clone(),
+                "captured_from" => merged.captured_from = local_rules.captured_from.clone(),
+                "captured_to" => merged.captured_to = local_rules.captured_to.clone(),
+                "camera" => merged.camera = local_rules.camera.clone(),
+                "lens" => merged.lens = local_rules.lens.clone(),
+                "min_rating" => merged.min_rating = local_rules.min_rating,
+                "max_rating" => merged.max_rating = local_rules.max_rating,
+                "label" => merged.label = local_rules.label,
+                "keyword" => merged.keyword = local_rules.keyword.clone(),
+                "text" => merged.text = local_rules.text.clone(),
                 _ => {
                     return Err(EngineError::BadParam(
                         "unsupported Collection conflict field".into(),
                     ));
                 }
             }
+            *server_rules = merged;
         }
         (_, _, _, "server") => {}
         _ => {
@@ -766,143 +790,166 @@ pub(crate) fn journal_conflicts(ctx: &Context) -> EngineResult<Vec<SyncConflict>
                     });
                 }
                 if let (Some(local_rules), Some(server_rules)) = (&local.rules, &server.rules) {
-                    let fields_to_compare = [
-                        (
-                            "format",
-                            local_rules
-                                .format
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .format
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "captured_from",
-                            local_rules
-                                .captured_from
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .captured_from
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "captured_to",
-                            local_rules
-                                .captured_to
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .captured_to
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "camera",
-                            local_rules
-                                .camera
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .camera
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "lens",
-                            local_rules
-                                .lens
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .lens
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "min_rating",
-                            local_rules
-                                .min_rating
-                                .map(SyncValue::Integer)
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .min_rating
-                                .map(SyncValue::Integer)
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "max_rating",
-                            local_rules
-                                .max_rating
-                                .map(SyncValue::Integer)
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .max_rating
-                                .map(SyncValue::Integer)
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "label",
-                            local_rules
-                                .label
-                                .map(SyncValue::Integer)
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .label
-                                .map(SyncValue::Integer)
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "keyword",
-                            local_rules
-                                .keyword
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .keyword
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                        ),
-                        (
-                            "text",
-                            local_rules
-                                .text
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                            server_rules
-                                .text
-                                .as_ref()
-                                .map(|v| SyncValue::Text(v.clone()))
-                                .unwrap_or(SyncValue::None),
-                        ),
-                    ];
-                    for (field, local_value, server_value) in fields_to_compare {
-                        if local_value != server_value {
+                    if let (Some(local_rules), Some(server_rules)) =
+                        (local_rules.legacy_rules(), server_rules.legacy_rules())
+                    {
+                        let fields_to_compare = [
+                            (
+                                "format",
+                                local_rules
+                                    .format
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .format
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "captured_from",
+                                local_rules
+                                    .captured_from
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .captured_from
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "captured_to",
+                                local_rules
+                                    .captured_to
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .captured_to
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "camera",
+                                local_rules
+                                    .camera
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .camera
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "lens",
+                                local_rules
+                                    .lens
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .lens
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "min_rating",
+                                local_rules
+                                    .min_rating
+                                    .map(SyncValue::Integer)
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .min_rating
+                                    .map(SyncValue::Integer)
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "max_rating",
+                                local_rules
+                                    .max_rating
+                                    .map(SyncValue::Integer)
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .max_rating
+                                    .map(SyncValue::Integer)
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "label",
+                                local_rules
+                                    .label
+                                    .map(SyncValue::Integer)
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .label
+                                    .map(SyncValue::Integer)
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "keyword",
+                                local_rules
+                                    .keyword
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .keyword
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                            (
+                                "text",
+                                local_rules
+                                    .text
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                                server_rules
+                                    .text
+                                    .as_ref()
+                                    .map(|v| SyncValue::Text(v.clone()))
+                                    .unwrap_or(SyncValue::None),
+                            ),
+                        ];
+                        for (field, local_value, server_value) in fields_to_compare {
+                            if local_value != server_value {
+                                fields.push(SyncFieldConflict {
+                                    field: field.into(),
+                                    local: local_value,
+                                    server: server_value,
+                                    choice: choice_for(&item.choices, field),
+                                });
+                            } else {
+                                shared.push(SyncSharedField {
+                                    field: field.into(),
+                                    value: local_value,
+                                });
+                            }
+                        }
+                    } else {
+                        let local_value = SyncValue::Rules(SyncRules {
+                            summary: local_rules.summary(),
+                        });
+                        if local_rules.canonical_expr()? != server_rules.canonical_expr()? {
                             fields.push(SyncFieldConflict {
-                                field: field.into(),
+                                field: "rules".into(),
                                 local: local_value,
-                                server: server_value,
-                                choice: choice_for(&item.choices, field),
+                                server: SyncValue::Rules(SyncRules {
+                                    summary: server_rules.summary(),
+                                }),
+                                choice: choice_for(&item.choices, "rules"),
                             });
                         } else {
                             shared.push(SyncSharedField {
-                                field: field.into(),
+                                field: "rules".into(),
                                 value: local_value,
                             });
                         }

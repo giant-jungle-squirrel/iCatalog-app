@@ -151,16 +151,8 @@ pub enum SyncValue {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncRules {
-    pub format: Option<String>,
-    pub captured_from: Option<String>,
-    pub captured_to: Option<String>,
-    pub camera: Option<String>,
-    pub lens: Option<String>,
-    pub min_rating: Option<i64>,
-    pub max_rating: Option<i64>,
-    pub label: Option<i64>,
-    pub keyword: Option<String>,
-    pub text: Option<String>,
+    /// Complete bounded, parenthesized expression from the catalogue model.
+    pub summary: String,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -368,16 +360,7 @@ fn render_sync_value(value: &SyncValue) -> String {
             }
             format!("{{{}}}", rendered.join(", "))
         }
-        SyncValue::Rules(rules) => format!(
-            "rules(min_rating={:?}, max_rating={:?}, label={:?}, format={})",
-            rules.min_rating,
-            rules.max_rating,
-            rules.label,
-            rules
-                .format
-                .as_deref()
-                .map_or("None".to_owned(), |v| shorten(v, 48))
-        ),
+        SyncValue::Rules(rules) => rules.summary.clone(),
         SyncValue::None => "(none)".into(),
     }
 }

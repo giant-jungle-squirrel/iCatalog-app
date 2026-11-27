@@ -46,6 +46,18 @@ impl Command for Collection {
                 doc: "Smart Collection: any listed format/extension, ignoring ASCII case (e.g. jpg,png); separate with commas, semicolons or spaces",
             },
             ParamSpec {
+                name: "rules-json",
+                required: false,
+                positional: false,
+                doc: "Smart Collection: grouped all/any JSON expression; mutually exclusive with individual rule options",
+            },
+            ParamSpec {
+                name: "output",
+                required: false,
+                positional: false,
+                doc: "collection rules only: json exports rules for reuse with --rules-json; omit for readable rules",
+            },
+            ParamSpec {
                 name: "captured-from",
                 required: false,
                 positional: false,
@@ -97,7 +109,7 @@ impl Command for Collection {
                 name: "text",
                 required: false,
                 positional: false,
-                doc: "Smart Collection: filename/path contains this text (ASCII case-insensitive); all rules must match",
+                doc: "Smart Collection: filename/path contains this text (case-insensitive); individual rule options are ANDed",
             },
             ParamSpec {
                 name: "assets",
@@ -119,10 +131,10 @@ impl Command for Collection {
             "list" => &[],
             "create" => &["name"],
             "rename" => &["id", "name"],
-            "create-smart" => &["name", "format", "captured-from", "captured-to", "camera", "lens", "min-rating", "max-rating", "label", "keyword", "text"],
+            "create-smart" => &["name", "format", "captured-from", "captured-to", "camera", "lens", "min-rating", "max-rating", "label", "keyword", "text", "rules-json"],
             "preview-smart" => super::smart_collection::RULE_KEYS,
-            "set-rules" => &["id", "name", "format", "captured-from", "captured-to", "camera", "lens", "min-rating", "max-rating", "label", "keyword", "text"],
-            "rules" => &["id"],
+            "set-rules" => &["id", "name", "format", "captured-from", "captured-to", "camera", "lens", "min-rating", "max-rating", "label", "keyword", "text", "rules-json"],
+            "rules" => &["id", "output"],
             "show" => &["id"],
             "add" | "remove" => &["id", "asset", "assets"],
             _ => {
@@ -131,7 +143,7 @@ impl Command for Collection {
                 ))
             }
         };
-        for key in ["name", "id", "asset", "assets"]
+        for key in ["name", "id", "asset", "assets", "output"]
             .into_iter()
             .chain(super::smart_collection::RULE_KEYS.iter().copied())
         {

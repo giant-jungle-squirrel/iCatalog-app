@@ -136,6 +136,40 @@ impl SyncStateDb {
         Ok(value.unwrap_or(0) != 0)
     }
 
+    /// A verified replacement must retain its exact bytes until sync recovery
+    /// checks the durable digest and finalizes the journal. Catalogue openers
+    /// use this read-only probe before applying schema migrations.
+    pub fn snapshot_recovery_pending(&self) -> Result<bool> {
+        let exists: bool = self.conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='sync_recovery')",
+            [],
+            |row| row.get(0),
+        )?;
+        if !exists {
+            return Ok(false);
+        }
+        let phase: Option<Option<String>> = self.conn.query_row(
+            "SELECT CASE WHEN typeof(phase)='text' AND length(CAST(phase AS BLOB))<=32 THEN phase END FROM sync_recovery WHERE singleton=1",
+            [],
+            |row| row.get(0),
+        ).optional()?;
+        match phase {
+            None => Ok(false),
+            Some(Some(phase)) if phase == "snapshot_ready" => Ok(true),
+            Some(Some(phase))
+                if matches!(
+                    phase.as_str(),
+                    "conflicts" | "retry" | "applying" | "applied"
+                ) =>
+            {
+                Ok(false)
+            }
+            _ => Err(CatalogError::InvalidQuery(
+                "invalid sync recovery phase; inspect sync recovery before editing",
+            )),
+        }
+    }
+
     pub fn set_required(&self, required: bool) -> Result<()> {
         self.conn.execute_batch("PRAGMA synchronous=FULL")?;
         self.conn.execute("INSERT INTO state(key,value) VALUES('sync-required',?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [i64::from(required)])?;

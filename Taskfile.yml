@@ -70,7 +70,7 @@ tasks:
 
   # CLI
   cli:run:
-    desc: Run the icatalog CLI (e.g. `task cli:run -- collection my.sqlite set-rules --id 1 --name Favourites --min-rating 2 --max-rating 4`)
+    desc: Run the icatalog CLI (collection rules support flat AND options or grouped --rules-json; rules --output json exports groups)
     cmds:
       - cargo run -q -p icatalog-cli -- {{.CLI_ARGS}}
 

@@ -4,18 +4,117 @@ use icatalog_catalog::SmartRules;
 use icatalog_engine::{Outcome, Params};
 use std::time::{Duration, Instant};
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub(super) struct RuleInputs {
-    format: String,
-    from: String,
-    to: String,
-    camera: String,
-    lens: String,
-    rating: Option<i64>,
-    max_rating: Option<i64>,
-    label: String,
-    keyword: String,
-    text: String,
+    root: DraftNode,
+    next_id: u64,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+struct DraftNode {
+    id: u64,
+    kind: DraftKind,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+enum DraftKind {
+    Group {
+        all: bool,
+        children: Vec<DraftNode>,
+    },
+    Rule {
+        field: Field,
+        text: String,
+        rating: Option<i64>,
+    },
+}
+
+#[derive(Clone, Copy, Default, PartialEq, Eq)]
+enum Field {
+    #[default]
+    Format,
+    CapturedFrom,
+    CapturedTo,
+    Camera,
+    Lens,
+    MinRating,
+    MaxRating,
+    Label,
+    Keyword,
+    Text,
+}
+
+impl Field {
+    const ALL: [Self; 10] = [
+        Self::Format,
+        Self::CapturedFrom,
+        Self::CapturedTo,
+        Self::Camera,
+        Self::Lens,
+        Self::MinRating,
+        Self::MaxRating,
+        Self::Label,
+        Self::Keyword,
+        Self::Text,
+    ];
+
+    fn caption(self) -> &'static str {
+        match self {
+            Self::Format => "Format",
+            Self::CapturedFrom => "Captured From",
+            Self::CapturedTo => "Captured To",
+            Self::Camera => "Camera Contains",
+            Self::Lens => "Lens Contains",
+            Self::MinRating => "Minimum Rating",
+            Self::MaxRating => "Maximum Rating",
+            Self::Label => "Label Number",
+            Self::Keyword => "Keyword",
+            Self::Text => "Filename or Path Contains",
+        }
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::Format => "format",
+            Self::CapturedFrom => "captured-from",
+            Self::CapturedTo => "captured-to",
+            Self::Camera => "camera",
+            Self::Lens => "lens",
+            Self::MinRating => "min-rating",
+            Self::MaxRating => "max-rating",
+            Self::Label => "label",
+            Self::Keyword => "keyword",
+            Self::Text => "text",
+        }
+    }
+
+    fn hint(self) -> &'static str {
+        match self {
+            Self::Format => "PTG, REB, CLIP, …",
+            Self::CapturedFrom | Self::CapturedTo => "YYYY-MM-DD (inclusive)",
+            Self::Camera => "Camera make or model",
+            Self::Lens => "Lens name",
+            Self::Label => "0–7",
+            Self::Keyword => "Exact keyword name",
+            Self::Text => "Filename or path contains",
+            Self::MinRating | Self::MaxRating => "",
+        }
+    }
+}
+
+impl Default for RuleInputs {
+    fn default() -> Self {
+        Self {
+            root: DraftNode {
+                id: 0,
+                kind: DraftKind::Group {
+                    all: true,
+                    children: Vec::new(),
+                },
+            },
+            next_id: 1,
+        }
+    }
 }
 
 /// One background read at a time. Changed inputs immediately hide old results;
@@ -96,7 +195,7 @@ impl RulePreview {
                     ui.label("Checking matches…");
                 }
             });
-        ui.label("Across the whole catalogue. All filled rules must match.");
+        ui.label("Across the whole catalogue. Groups control how rules combine.");
         if self.is_pending() {
             ui.ctx().request_repaint_after(Duration::from_millis(25));
         }
@@ -104,126 +203,268 @@ impl RulePreview {
 }
 
 impl RuleInputs {
-    pub(super) fn label_column_width(ui: &egui::Ui) -> f32 {
-        // Share the widest rule caption with the separate Name row.
-        ui.painter()
-            .layout_no_wrap(
-                "Filename or Path Contains".into(),
-                egui::TextStyle::Body.resolve(ui.style()),
-                ui.visuals().text_color(),
-            )
-            .size()
-            .x
-    }
-
-    pub(super) fn from_rules(r: &SmartRules) -> Self {
-        Self {
-            format: r.format.clone().unwrap_or_default(),
-            from: r.captured_from.clone().unwrap_or_default(),
-            to: r.captured_to.clone().unwrap_or_default(),
-            camera: r.camera.clone().unwrap_or_default(),
-            lens: r.lens.clone().unwrap_or_default(),
-            rating: r.min_rating,
-            max_rating: r.max_rating,
-            label: r.label.map(|v| v.to_string()).unwrap_or_default(),
-            keyword: r.keyword.clone().unwrap_or_default(),
-            text: r.text.clone().unwrap_or_default(),
-        }
+    pub(super) fn from_rules(rules: &SmartRules) -> Self {
+        let mut next_id = 0;
+        let root = DraftNode::from_expression(rules.expression(), &mut next_id);
+        Self { root, next_id }
     }
 
     pub(super) fn show(&mut self, ui: &mut egui::Ui) {
-        ui.label("Match all filled rules. Blank fields match any value.");
-        egui::Grid::new("smart_rule_fields")
-            .num_columns(2)
-            .min_col_width(Self::label_column_width(ui))
-            .spacing(egui::vec2(16.0, 4.0))
+        ui.label("Combine rules with All (AND) or Any (OR).");
+        let mut remaining = 128_usize.saturating_sub(self.root.node_count());
+        egui::ScrollArea::both()
+            .id_salt("smart_rule_editor")
+            .max_height((ui.ctx().content_rect().height() - 335.0).max(100.0))
+            .auto_shrink([false, true])
             .show(ui, |ui| {
-                for (label, value, hint) in [
-                    ("Format", &mut self.format, "JPEG, NEF, PNG, …"),
-                    ("Captured From", &mut self.from, "YYYY-MM-DD"),
-                    ("Captured To", &mut self.to, "YYYY-MM-DD (inclusive)"),
-                    ("Camera Contains", &mut self.camera, "Camera make or model"),
-                    ("Lens Contains", &mut self.lens, "Lens name"),
-                ] {
-                    field(ui, label, value, hint);
-                }
-                let label = ui.label("Minimum Rating");
-                super::rating::editor(ui, &mut self.rating, "Minimum Rating").labelled_by(label.id);
-                ui.end_row();
-                let label = ui.label("Maximum Rating");
-                super::rating::editor(ui, &mut self.max_rating, "Maximum Rating")
-                    .labelled_by(label.id);
-                ui.end_row();
-                for (label, value, hint) in [
-                    ("Label Number", &mut self.label, "0–7"),
-                    ("Keyword", &mut self.keyword, "Exact keyword name"),
-                    ("Filename or Path Contains", &mut self.text, "Text"),
-                ] {
-                    field(ui, label, value, hint);
-                }
+                self.root
+                    .show(ui, &mut self.next_id, &mut remaining, 1, "1");
             });
     }
 
     pub(super) fn apply(&self, params: &mut Params) {
-        for (key, value) in [
-            ("format", &self.format),
-            ("captured-from", &self.from),
-            ("captured-to", &self.to),
-            ("camera", &self.camera),
-            ("lens", &self.lens),
-            ("label", &self.label),
-            ("keyword", &self.keyword),
-            ("text", &self.text),
-        ] {
-            if !value.trim().is_empty() {
-                params.set(
-                    key,
-                    if key == "keyword" {
-                        value
-                    } else {
-                        value.trim()
-                    },
-                );
-            }
-        }
-        if let Some(rating) = self.rating {
-            params.set("min-rating", rating.to_string());
-        }
-        if let Some(rating) = self.max_rating {
-            params.set("max-rating", rating.to_string());
-        }
+        params.set("rules-json", self.root.json().to_string());
     }
 }
 
-fn field(ui: &mut egui::Ui, caption: &str, value: &mut String, hint: &str) {
-    let label = ui.label(caption);
-    let response = ui
-        .add(
-            egui::TextEdit::singleline(value)
-                .hint_text(hint)
-                .char_limit(1024)
-                .desired_width(240.0),
-        )
-        .labelled_by(label.id);
-    if caption == "Format" {
-        response.on_hover_text("Match any listed format or extension, e.g. jpg, png. Separate with commas, semicolons or spaces.");
+impl DraftNode {
+    fn next_id(next: &mut u64) -> u64 {
+        let id = *next;
+        *next = next.saturating_add(1);
+        id
     }
-    ui.end_row();
+
+    fn from_expression(expression: icatalog_catalog::SmartExpr, next: &mut u64) -> Self {
+        use icatalog_catalog::{SmartExpr, SmartPredicate};
+        let id = Self::next_id(next);
+        let kind = match expression {
+            SmartExpr::All(children) => DraftKind::Group {
+                all: true,
+                children: children
+                    .into_iter()
+                    .map(|child| Self::from_expression(child, next))
+                    .collect(),
+            },
+            SmartExpr::Any(children) => DraftKind::Group {
+                all: false,
+                children: children
+                    .into_iter()
+                    .map(|child| Self::from_expression(child, next))
+                    .collect(),
+            },
+            SmartExpr::Rule(predicate) => {
+                let (field, text, rating) = match predicate {
+                    SmartPredicate::Format(v) => (Field::Format, v, None),
+                    SmartPredicate::CapturedFrom(v) => (Field::CapturedFrom, v, None),
+                    SmartPredicate::CapturedTo(v) => (Field::CapturedTo, v, None),
+                    SmartPredicate::Camera(v) => (Field::Camera, v, None),
+                    SmartPredicate::Lens(v) => (Field::Lens, v, None),
+                    SmartPredicate::MinRating(v) => (Field::MinRating, String::new(), Some(v)),
+                    SmartPredicate::MaxRating(v) => (Field::MaxRating, String::new(), Some(v)),
+                    SmartPredicate::Label(v) => (Field::Label, v.to_string(), None),
+                    SmartPredicate::Keyword(v) => (Field::Keyword, v, None),
+                    SmartPredicate::Text(v) => (Field::Text, v, None),
+                };
+                DraftKind::Rule {
+                    field,
+                    text,
+                    rating,
+                }
+            }
+        };
+        Self { id, kind }
+    }
+
+    fn node_count(&self) -> usize {
+        match &self.kind {
+            DraftKind::Group { children, .. } => children
+                .iter()
+                .fold(1_usize, |sum, child| sum.saturating_add(child.node_count())),
+            DraftKind::Rule { .. } => 1,
+        }
+    }
+
+    fn json(&self) -> serde_json::Value {
+        use serde_json::{json, Value};
+        match &self.kind {
+            DraftKind::Group { all, children } => {
+                let children: Vec<_> = children.iter().map(Self::json).collect();
+                if *all {
+                    json!({"all": children})
+                } else {
+                    json!({"any": children})
+                }
+            }
+            DraftKind::Rule {
+                field,
+                text,
+                rating,
+            } => {
+                let value = if matches!(field, Field::MinRating | Field::MaxRating) {
+                    rating.map_or(Value::Null, |value| json!(value))
+                } else if *field == Field::Label {
+                    text.trim()
+                        .parse::<i64>()
+                        .map_or_else(|_| json!(text), |value| json!(value))
+                } else {
+                    // JSON-created substring rules may intentionally include
+                    // spaces. Opening and saving them must not change meaning.
+                    json!(text)
+                };
+                json!({"field": field.key(), "value": value})
+            }
+        }
+    }
+
+    // These bounds mirror the command's limits solely to keep the editor usable.
+    // Validation and matching remain in the catalogue and engine.
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        next: &mut u64,
+        remaining: &mut usize,
+        depth: usize,
+        path: &str,
+    ) -> bool {
+        ui.push_id(self.id, |ui| match &mut self.kind {
+            DraftKind::Group { all, children } => {
+                let mut remove = false;
+                egui::Frame::group(ui.style()).inner_margin(8).show(ui, |ui| {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.label("Match");
+                        let response = egui::ComboBox::from_id_salt("operator")
+                            .selected_text(if *all { "All (AND)" } else { "Any (OR)" })
+                            .width(112.0)
+                            .show_ui(ui, |ui| {
+                                for (value, label) in [(true, "All (AND)"), (false, "Any (OR)")] {
+                                    ui.selectable_value(all, value, label).widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), format!("Use {label}")));
+                                }
+                            }).response;
+                        response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, ui.is_enabled(), format!("Match group {path}")));
+                        ui.label("of these rules");
+                        if depth > 1 {
+                            remove = ui.button("Remove Group").on_hover_text("Remove this group and its rules").clicked();
+                        }
+                    });
+                    let mut removed = None;
+                    for (index, child) in children.iter_mut().enumerate() {
+                        if child.show(ui, next, remaining, depth.saturating_add(usize::from(matches!(child.kind, DraftKind::Group { .. }))), &format!("{path}.{}", index.saturating_add(1))) {
+                            removed = Some(index);
+                        }
+                    }
+                    if let Some(index) = removed {
+                        if let Some(child) = children.get(index) { *remaining = remaining.saturating_add(child.node_count()); }
+                        children.remove(index);
+                    }
+                    ui.horizontal(|ui| {
+                        let add_rule = ui.add_enabled(*remaining > 0, egui::Button::new("Add Rule"));
+                        if depth > 1 { add_rule.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), format!("Add Rule to group {path}"))); }
+                        if add_rule.clicked() {
+                            children.push(Self { id: Self::next_id(next), kind: DraftKind::Rule { field: Field::Format, text: String::new(), rating: None } });
+                            *remaining = remaining.saturating_sub(1);
+                        }
+                        let add_group = ui.add_enabled(*remaining > 0 && depth < 8, egui::Button::new("Add Group"));
+                        if depth > 1 { add_group.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), format!("Add Group to group {path}"))); }
+                        if add_group.clicked() {
+                            children.push(Self { id: Self::next_id(next), kind: DraftKind::Group { all: true, children: Vec::new() } });
+                            *remaining = remaining.saturating_sub(1);
+                        }
+                    });
+                    let bounds = ui.min_rect();
+                    ui.ctx().accesskit_node_builder(ui.unique_id(), |node| {
+                        node.set_role(egui::accesskit::Role::Group);
+                        node.set_label(format!("Rule group {path}"));
+                        node.set_bounds(egui::accesskit::Rect { x0: f64::from(bounds.left()), y0: f64::from(bounds.top()), x1: f64::from(bounds.right()), y1: f64::from(bounds.bottom()) });
+                    });
+                });
+                remove
+            }
+            DraftKind::Rule { field, text, rating } => {
+                let mut remove = false;
+                ui.horizontal_wrapped(|ui| {
+                    let before = *field;
+                    let response = egui::ComboBox::from_id_salt("field")
+                        .selected_text(field.caption()).width(190.0)
+                        .show_ui(ui, |ui| {
+                            for candidate in Field::ALL {
+                                ui.selectable_value(field, candidate, candidate.caption()).widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), format!("Use {}", candidate.caption())));
+                            }
+                        }).response;
+                    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::ComboBox, ui.is_enabled(), format!("Field for rule {path}")));
+                    if *field != before { text.clear(); *rating = None; }
+                    if matches!(field, Field::MinRating | Field::MaxRating) {
+                        super::rating::editor(ui, rating, field.caption());
+                    } else {
+                        let response = ui.add(egui::TextEdit::singleline(text)
+                            .hint_text(field.hint()).char_limit(1024).desired_width(180.0));
+                        response.widget_info(|| {
+                            let mut info = egui::WidgetInfo::text_edit(ui.is_enabled(), text.as_str(), text.as_str(), field.caption());
+                            info.label = Some(field.caption().into());
+                            info
+                        });
+                        if *field == Field::Format {
+                            response.on_hover_text("Match any listed format or extension. Separate with commas, semicolons or spaces.");
+                        }
+                    }
+                    let response = ui.button("−").on_hover_text("Remove this rule");
+                    response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, ui.is_enabled(), format!("Remove rule {path}")));
+                    remove = response.clicked();
+                });
+                remove
+            }
+        }).inner
+    }
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
-    use super::RuleInputs;
-    use icatalog_engine::Params;
+    use super::*;
 
     #[test]
     fn exact_keyword_input_keeps_its_spaces() {
-        let inputs = RuleInputs {
-            keyword: " travel ".into(),
+        let rules = SmartRules {
+            keyword: Some(" travel ".into()),
             ..Default::default()
         };
+        let inputs = RuleInputs::from_rules(&rules);
         let mut params = Params::new();
         inputs.apply(&mut params);
-        assert_eq!(params.get("keyword"), Some(" travel "));
+        assert_eq!(
+            SmartRules::from_json(params.get("rules-json").unwrap()).unwrap(),
+            rules
+        );
+    }
+
+    #[test]
+    fn incomplete_rows_and_empty_groups_are_transported_for_validation() {
+        let empty = RuleInputs::default();
+        assert_eq!(empty.root.json(), serde_json::json!({"all": []}));
+        let node = DraftNode {
+            id: 1,
+            kind: DraftKind::Rule {
+                field: Field::MinRating,
+                text: String::new(),
+                rating: None,
+            },
+        };
+        assert_eq!(
+            node.json(),
+            serde_json::json!({"field":"min-rating", "value":null})
+        );
+    }
+
+    #[test]
+    fn reopening_json_rules_preserves_significant_text_spaces() {
+        let rules = SmartRules::from_json(
+            r#"{"any":[{"field":"text","value":" a "},{"field":"camera","value":" model "},{"field":"lens","value":" 50 "},{"field":"format","value":" PTG "},{"field":"keyword","value":" painting "}]}"#,
+        ).unwrap();
+        let inputs = RuleInputs::from_rules(&rules);
+        let mut params = Params::new();
+        inputs.apply(&mut params);
+        assert_eq!(
+            SmartRules::from_json(params.get("rules-json").unwrap()).unwrap(),
+            rules
+        );
     }
 }

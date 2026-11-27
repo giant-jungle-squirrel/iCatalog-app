@@ -22,6 +22,47 @@ use egui_kittest::{
 use std::time::{Duration, Instant};
 use support::bmp;
 
+// Drive the row editor through the same accessible controls as the desktop.
+fn add_smart_rule(h: &mut Harness<'_, App>, caption: &str) {
+    h.get_by_label("Add Rule").scroll_to_me();
+    h.run_steps(4);
+    h.get_by_label("Add Rule").click();
+    h.run_steps(3);
+    let index = (1..=128)
+        .filter(|index| {
+            h.query_by_label(&format!("Field for rule 1.{index}"))
+                .is_some()
+        })
+        .last()
+        .unwrap();
+    if caption != "Format" {
+        h.get_by_label(&format!("Field for rule 1.{index}")).click();
+        h.run_steps(2);
+        h.get_by_label(&format!("Use {caption}")).scroll_to_me();
+        h.run_steps(5);
+        h.get_by_label(&format!("Use {caption}")).click();
+        h.run_steps(3);
+    }
+}
+
+fn ensure_smart_rule(h: &mut Harness<'_, App>, caption: &str) {
+    if h.query_by_label(caption).is_none() {
+        add_smart_rule(h, caption);
+    }
+}
+
+fn remove_smart_rule(h: &mut Harness<'_, App>, caption: &str) {
+    let target = h.get_by_label(caption).rect();
+    let index = (1..=128)
+        .find(|index| {
+            h.query_by_label(&format!("Remove rule 1.{index}"))
+                .is_some_and(|node| (node.rect().center().y - target.center().y).abs() < 5.0)
+        })
+        .unwrap();
+    h.get_by_label(&format!("Remove rule 1.{index}")).click();
+    h.run_steps(3);
+}
+
 #[cfg(unix)]
 #[test]
 fn import_rejects_a_non_utf8_directory_instead_of_substituting_its_name() {
@@ -2405,6 +2446,7 @@ fn visual_snapshots() {
     collections.get_by_label("Smart Collection").click();
     settle(&mut collections);
     collections.run_steps(10); // Let the taller modal finish moving to its centre.
+    ensure_smart_rule(&mut collections, "Format");
     collections.get_by_label("Format").click();
     collections.run_steps(2);
     collections.get_by_label("Format").type_text("JPEG");
@@ -2677,6 +2719,7 @@ fn visual_snapshots() {
     settle(&mut preview);
     preview.get_by_label("Edit Rules…").click();
     settle(&mut preview);
+    ensure_smart_rule(&mut preview, "Camera Contains");
     preview.get_by_label("Camera Contains").click();
     preview.run_steps(2);
     preview.get_by_label("Camera Contains").type_text("Sony");
@@ -2699,6 +2742,32 @@ fn visual_snapshots() {
     smart.run();
     smart.snapshot("catalogue-rename-collection");
     results.extend(smart.take_snapshot_results());
+
+    let grouped_fixture = Fixture::new();
+    let grouped_ctx = open_catalogue(&grouped_fixture.path()).unwrap();
+    let grouped_id = grouped_ctx
+        .catalog()
+        .insert_collection("Paintings")
+        .unwrap();
+    let grouped_rules = icatalog_catalog::SmartRules::from_json(r#"{"all":[{"any":[{"field":"format","value":"PTG, REB, CLIP"},{"field":"keyword","value":"painting"}]},{"field":"min-rating","value":4}]}"#).unwrap();
+    grouped_ctx
+        .catalog()
+        .set_smart_rules(grouped_id, &grouped_rules)
+        .unwrap();
+    for (name, theme) in [
+        ("catalogue-smart-grouped", egui::Theme::Dark),
+        ("catalogue-smart-grouped-light", egui::Theme::Light),
+    ] {
+        let mut grouped = grouped_fixture.harness_with_display([800.0, 600.0], 1.0, theme);
+        grouped.get_by_label("Paintings (Smart)").click_secondary();
+        settle(&mut grouped);
+        grouped.get_by_label("Edit Rules…").click();
+        settle(&mut grouped);
+        grouped.event(egui::Event::PointerGone);
+        grouped.run();
+        grouped.snapshot(name);
+        results.extend(grouped.take_snapshot_results());
+    }
 
     let sync_fixture = Fixture::new();
     let mut sync = sync_fixture.harness([800.0, 600.0]);

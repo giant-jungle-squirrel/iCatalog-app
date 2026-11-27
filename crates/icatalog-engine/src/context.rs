@@ -7,6 +7,7 @@ pub struct Context {
     path: PathBuf,
     catalog: icatalog_catalog::Catalog,
     read_only: bool,
+    migrations_deferred: bool,
     progress: Option<std::sync::Arc<dyn Fn(SyncProgress) + Send + Sync>>,
 }
 
@@ -17,6 +18,7 @@ impl Context {
             path: PathBuf::from(":memory:"),
             catalog: icatalog_catalog::Catalog::open_in_memory()?,
             read_only: false,
+            migrations_deferred: false,
             progress: None,
         })
     }
@@ -28,6 +30,7 @@ impl Context {
             path: path.as_ref().to_path_buf(),
             catalog: icatalog_catalog::Catalog::open_in_memory()?,
             read_only: false,
+            migrations_deferred: false,
             progress: None,
         })
     }
@@ -35,11 +38,12 @@ impl Context {
     /// Open (creating if absent) the catalogue at `path`.
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let path = path.as_ref().to_path_buf();
-        let catalog = icatalog_catalog::Catalog::open(&path)?;
+        let (catalog, migrations_deferred) = open_catalogue(&path, true)?;
         Ok(Context {
             path,
             catalog,
             read_only: false,
+            migrations_deferred,
             progress: None,
         })
     }
@@ -55,11 +59,12 @@ impl Context {
         }
         // Removing SQLite's create flag also covers removal between the check
         // above and opening the connection.
-        let catalog = icatalog_catalog::Catalog::open_existing(&path)?;
+        let (catalog, migrations_deferred) = open_catalogue(&path, false)?;
         Ok(Context {
             path,
             catalog,
             read_only: false,
+            migrations_deferred,
             progress: None,
         })
     }
@@ -72,12 +77,35 @@ impl Context {
             path,
             catalog,
             read_only: true,
+            migrations_deferred: false,
             progress: None,
         })
     }
 
     pub fn is_read_only(&self) -> bool {
         self.read_only
+    }
+
+    /// The main file is held read-only until an interrupted sync snapshot has
+    /// been verified, or unreadable recovery state has been repaired. Unlike an
+    /// explicitly opened backup, this session still permits recovery commands.
+    pub fn migrations_deferred(&self) -> bool {
+        self.migrations_deferred
+    }
+
+    /// Restore the normal catalogue connection only after the sync journal no
+    /// longer needs the pre-migration bytes for digest/generation verification.
+    pub fn resume_after_sync_recovery(&mut self) -> Result<()> {
+        let (catalog, deferred) = open_catalogue(&self.path, false)?;
+        self.catalog = catalog;
+        self.migrations_deferred = deferred;
+        if deferred {
+            return Err(EngineError::Unsupported(
+                "sync recovery is pending; inspect sync-resolve list and recover before editing"
+                    .into(),
+            ));
+        }
+        Ok(())
     }
 
     /// Install a task-local progress callback. No callback is retained by default.
@@ -100,16 +128,15 @@ impl Context {
             return Ok(false);
         };
         if !path.is_file() {
-            return Ok(false);
+            return Ok(self.migrations_deferred);
         }
         let row = self
             .catalog
             .catalogue()?
             .ok_or_else(|| EngineError::Unsupported("catalogue is not initialised".into()))?;
-        Ok(
-            icatalog_catalog::sync_state::SyncStateDb::open(&self.path, &row.id, false)?
-                .required()?,
-        )
+        let state = icatalog_catalog::sync_state::SyncStateDb::open(&self.path, &row.id, false)?;
+        let recovery_pending = state.snapshot_recovery_pending()?;
+        Ok(state.required()? || recovery_pending || self.migrations_deferred)
     }
 
     /// Set or clear the durable sync-required latch. It is independent of a backup/snapshot replacement.
@@ -193,10 +220,44 @@ impl Context {
         let old = std::mem::replace(&mut self.catalog, placeholder);
         drop(old);
         if let Err(e) = std::fs::rename(temp, &self.path) {
-            self.catalog = icatalog_catalog::Catalog::open_existing(&self.path)?;
+            let (catalog, deferred) = open_catalogue(&self.path, false)?;
+            self.catalog = catalog;
+            self.migrations_deferred = deferred;
             return Err(e.into());
         }
-        self.catalog = icatalog_catalog::Catalog::open_existing(&self.path)?;
+        let (catalog, deferred) = open_catalogue(&self.path, false)?;
+        self.catalog = catalog;
+        self.migrations_deferred = deferred;
         Ok(())
     }
+}
+
+/// Opening a recovery companion is read-only and catalogue-ID bound. If its
+/// state cannot be inspected, keep the main file untouched and let sync-check /
+/// sync-resolve report the original error. This also preserves existing desktop
+/// behavior: a damaged companion permits browsing but never enables edits.
+fn open_catalogue(path: &Path, create: bool) -> Result<(icatalog_catalog::Catalog, bool)> {
+    let companion = icatalog_catalog::sync_state::companion_path(path)?;
+    let companion_exists = match std::fs::symlink_metadata(&companion) {
+        Ok(_) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => return Err(error.into()),
+    };
+    if companion_exists {
+        let catalog = icatalog_catalog::Catalog::open_read_only(path)?;
+        let row = catalog
+            .catalogue()?
+            .ok_or_else(|| EngineError::Unsupported("catalogue is not initialised".into()))?;
+        let pending = icatalog_catalog::sync_state::SyncStateDb::open(path, &row.id, false)
+            .and_then(|state| state.snapshot_recovery_pending());
+        if !matches!(pending, Ok(false)) {
+            return Ok((catalog, true));
+        }
+    }
+    let catalog = if create {
+        icatalog_catalog::Catalog::open(path)?
+    } else {
+        icatalog_catalog::Catalog::open_existing(path)?
+    };
+    Ok((catalog, false))
 }

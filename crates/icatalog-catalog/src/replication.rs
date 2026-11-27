@@ -131,20 +131,7 @@ impl Catalog {
                     .saturating_add(128),
             )?;
             if let Some(r) = &state.rules {
-                for s in [
-                    &r.format,
-                    &r.captured_from,
-                    &r.captured_to,
-                    &r.camera,
-                    &r.lens,
-                    &r.keyword,
-                    &r.text,
-                ]
-                .into_iter()
-                .flatten()
-                {
-                    add_size(&mut size, s.len())?;
-                }
+                add_size(&mut size, r.to_json()?.len())?;
             }
             if state.rules.is_none() {
                 let mut members = self.conn.prepare("SELECT CASE WHEN length(CAST(a.uid AS BLOB))<=1024 THEN a.uid END FROM collection_asset ca JOIN asset a ON a.id=ca.asset_id WHERE ca.collection_id=?1 ORDER BY a.uid LIMIT 100001")?;

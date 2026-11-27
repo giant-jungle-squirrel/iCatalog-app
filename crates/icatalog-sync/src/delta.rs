@@ -1,7 +1,8 @@
 //! Bounded v2 binary messages. Lengths are checked before slicing/allocation.
 use crate::{Result, SyncError};
 use icatalog_catalog::{
-    valid_catalogue_id, AnnotationState, CollectionState, SmartRules, MAX_SYNC_BYTES, MAX_SYNC_ROWS,
+    valid_catalogue_id, AnnotationState, CollectionState, SmartExpr, SmartPredicate, SmartRules,
+    MAX_SYNC_BYTES, MAX_SYNC_ROWS,
 };
 use std::collections::BTreeSet;
 
@@ -37,10 +38,24 @@ impl Change {
                     && a.keywords == b.keywords
             }
             (Value::Collection(a), Value::Collection(b)) => {
-                a.uid == b.uid && a.name == b.name && a.rules == b.rules && a.members == b.members
+                a.uid == b.uid
+                    && a.name == b.name
+                    && same_rules(&a.rules, &b.rules)
+                    && a.members == b.members
             }
             _ => false,
         }
+    }
+}
+
+fn same_rules(a: &Option<SmartRules>, b: &Option<SmartRules>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => match (a.canonical_expr(), b.canonical_expr()) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        },
+        _ => false,
     }
 }
 
@@ -140,6 +155,118 @@ fn opt_text(out: &mut Vec<u8>, s: &Option<String>) -> Result<()> {
     Ok(())
 }
 
+// These limits are checked before recursion or allocation, including for
+// malformed wire payloads that have not reached catalogue validation yet.
+const MAX_EXPRESSION_BYTES: usize = 64 * 1024;
+const MAX_EXPRESSION_NODES: usize = 128;
+const MAX_GROUP_LEVELS: usize = 8;
+
+fn expression_node(nodes: &mut usize) -> Result<()> {
+    if *nodes >= MAX_EXPRESSION_NODES {
+        return Err(bad());
+    }
+    *nodes += 1;
+    Ok(())
+}
+
+fn encode_expression(
+    out: &mut Vec<u8>,
+    expression: &SmartExpr,
+    depth: usize,
+    nodes: &mut usize,
+) -> Result<()> {
+    expression_node(nodes)?;
+    match expression {
+        SmartExpr::All(children) | SmartExpr::Any(children) => {
+            if depth >= MAX_GROUP_LEVELS
+                || children.is_empty()
+                || children.len() > MAX_EXPRESSION_NODES
+            {
+                return Err(bad());
+            }
+            out.push(if matches!(expression, SmartExpr::All(_)) {
+                1
+            } else {
+                2
+            });
+            count(out, children.len())?;
+            for child in children {
+                encode_expression(out, child, depth + 1, nodes)?;
+            }
+        }
+        SmartExpr::Rule(predicate) => {
+            let (tag, value) = match predicate {
+                SmartPredicate::Format(value) => (3, Some(value)),
+                SmartPredicate::CapturedFrom(value) => (4, Some(value)),
+                SmartPredicate::CapturedTo(value) => (5, Some(value)),
+                SmartPredicate::Camera(value) => (6, Some(value)),
+                SmartPredicate::Lens(value) => (7, Some(value)),
+                SmartPredicate::MinRating(_) => (8, None),
+                SmartPredicate::MaxRating(_) => (9, None),
+                SmartPredicate::Label(_) => (10, None),
+                SmartPredicate::Keyword(value) => (11, Some(value)),
+                SmartPredicate::Text(value) => (12, Some(value)),
+            };
+            out.push(tag);
+            if let Some(value) = value {
+                if value.len() > 1024 {
+                    return Err(bad());
+                }
+                text(out, value)?;
+            } else if let SmartPredicate::MinRating(value)
+            | SmartPredicate::MaxRating(value)
+            | SmartPredicate::Label(value) = predicate
+            {
+                number(out, *value);
+            }
+        }
+    }
+    if out.len() > MAX_EXPRESSION_BYTES {
+        return Err(bad());
+    }
+    Ok(())
+}
+
+fn decode_expression(
+    reader: &mut Reader<'_>,
+    depth: usize,
+    nodes: &mut usize,
+) -> Result<SmartExpr> {
+    expression_node(nodes)?;
+    let tag = reader.byte()?;
+    if matches!(tag, 1 | 2) {
+        if depth >= MAX_GROUP_LEVELS {
+            return Err(bad());
+        }
+        let count = reader.count(MAX_EXPRESSION_NODES.saturating_sub(*nodes))?;
+        if count == 0 {
+            return Err(bad());
+        }
+        let mut children = Vec::new();
+        for _ in 0..count {
+            children.push(decode_expression(reader, depth + 1, nodes)?);
+        }
+        return Ok(if tag == 1 {
+            SmartExpr::All(children)
+        } else {
+            SmartExpr::Any(children)
+        });
+    }
+    Ok(SmartExpr::Rule(match tag {
+        3 => SmartPredicate::Format(reader.bounded_text(1024)?),
+        4 => SmartPredicate::CapturedFrom(reader.bounded_text(1024)?),
+        5 => SmartPredicate::CapturedTo(reader.bounded_text(1024)?),
+        6 => SmartPredicate::Camera(reader.bounded_text(1024)?),
+        7 => SmartPredicate::Lens(reader.bounded_text(1024)?),
+        8 => SmartPredicate::MinRating(reader.number()?),
+        9 => SmartPredicate::MaxRating(reader.number()?),
+        10 => SmartPredicate::Label(reader.number()?),
+        11 => SmartPredicate::Keyword(reader.bounded_text(1024)?),
+        12 => SmartPredicate::Text(reader.bounded_text(1024)?),
+        _ => return Err(bad()),
+    }))
+}
+
 pub fn encode(id: &str, changes: &[Change]) -> Result<Vec<u8>> {
     if !valid_catalogue_id(id) {
         return Err(bad());
@@ -149,17 +276,28 @@ pub fn encode(id: &str, changes: &[Change]) -> Result<Vec<u8>> {
     text(&mut out, id)?;
     count(&mut out, changes.len())?;
     for change in changes {
-        out.push(match change.value {
+        let kind = match change.value {
             Value::Annotation(_) => 1,
+            // Kind 4 carries a bounded expression tree. Older servers refuse
+            // this record before applying the upload, never dropping OR rules.
+            Value::Collection(ref c)
+                if c.rules.as_ref().is_some_and(|r| r.legacy_rules().is_none()) =>
+            {
+                4
+            }
             // Kind 3 extends collection rules with a maximum rating. Legacy
             // decoders reject unknown kinds rather than silently dropping it.
             Value::Collection(ref c)
-                if c.rules.as_ref().is_some_and(|r| r.max_rating.is_some()) =>
+                if c.rules
+                    .as_ref()
+                    .and_then(SmartRules::legacy_rules)
+                    .is_some_and(|r| r.max_rating.is_some()) =>
             {
                 3
             }
             Value::Collection(_) => 2,
-        });
+        };
+        out.push(kind);
         number(&mut out, change.base_revision.unwrap_or(-1));
         number(&mut out, change.revision());
         match &change.value {
@@ -174,22 +312,33 @@ pub fn encode(id: &str, changes: &[Change]) -> Result<Vec<u8>> {
                 text(&mut out, &c.name)?;
                 out.push(u8::from(c.rules.is_some()));
                 if let Some(r) = &c.rules {
-                    for t in [
-                        &r.format,
-                        &r.captured_from,
-                        &r.captured_to,
-                        &r.camera,
-                        &r.lens,
-                        &r.keyword,
-                        &r.text,
-                    ] {
-                        opt_text(&mut out, t)?;
+                    if kind == 4 {
+                        let mut expression = Vec::new();
+                        encode_expression(&mut expression, &r.canonical_expr()?, 0, &mut 0)?;
+                        if expression.len() > MAX_EXPRESSION_BYTES {
+                            return Err(bad());
+                        }
+                        count(&mut out, expression.len())?;
+                        out.extend_from_slice(&expression);
+                    } else {
+                        let r = r.legacy_rules().ok_or_else(bad)?;
+                        for t in [
+                            &r.format,
+                            &r.captured_from,
+                            &r.captured_to,
+                            &r.camera,
+                            &r.lens,
+                            &r.keyword,
+                            &r.text,
+                        ] {
+                            opt_text(&mut out, t)?;
+                        }
+                        number(&mut out, r.min_rating.unwrap_or(-1));
+                        if r.max_rating.is_some() {
+                            number(&mut out, r.max_rating.unwrap_or(-1));
+                        }
+                        number(&mut out, r.label.unwrap_or(-1));
                     }
-                    number(&mut out, r.min_rating.unwrap_or(-1));
-                    if r.max_rating.is_some() {
-                        number(&mut out, r.max_rating.unwrap_or(-1));
-                    }
-                    number(&mut out, r.label.unwrap_or(-1));
                 }
                 texts(&mut out, &c.members)?;
             }
@@ -228,7 +377,10 @@ impl<'a> Reader<'a> {
         Ok(n)
     }
     fn text(&mut self) -> Result<String> {
-        let n = self.count(1024 * 1024)?;
+        self.bounded_text(1024 * 1024)
+    }
+    fn bounded_text(&mut self, max: usize) -> Result<String> {
+        let n = self.count(max)?;
         String::from_utf8(self.take(n)?.to_vec()).map_err(|_| bad())
     }
     fn flag(&mut self) -> Result<bool> {
@@ -289,25 +441,39 @@ pub fn decode(bytes: &[u8]) -> Result<(String, Vec<Change>)> {
                 label: r.number()?,
                 keywords: r.texts()?,
             }),
-            2 | 3 => {
+            2..=4 => {
                 let name = r.text()?;
                 let rules = if r.flag()? {
-                    Some(SmartRules {
-                        format: r.opt_text()?,
-                        captured_from: r.opt_text()?,
-                        captured_to: r.opt_text()?,
-                        camera: r.opt_text()?,
-                        lens: r.opt_text()?,
-                        keyword: r.opt_text()?,
-                        text: r.opt_text()?,
-                        min_rating: opt_number(r.number()?)?,
-                        max_rating: if kind == 3 {
-                            opt_number(r.number()?)?
-                        } else {
-                            None
-                        },
-                        label: opt_number(r.number()?)?,
-                    })
+                    if kind == 4 {
+                        let len = r.count(MAX_EXPRESSION_BYTES)?;
+                        let mut expression = Reader {
+                            b: r.take(len)?,
+                            at: 0,
+                        };
+                        let root = decode_expression(&mut expression, 0, &mut 0)?;
+                        if expression.at != expression.b.len() {
+                            return Err(bad());
+                        }
+                        Some(SmartRules::from_expression(root)?)
+                    } else {
+                        Some(SmartRules {
+                            format: r.opt_text()?,
+                            captured_from: r.opt_text()?,
+                            captured_to: r.opt_text()?,
+                            camera: r.opt_text()?,
+                            lens: r.opt_text()?,
+                            keyword: r.opt_text()?,
+                            text: r.opt_text()?,
+                            min_rating: opt_number(r.number()?)?,
+                            max_rating: if kind == 3 {
+                                opt_number(r.number()?)?
+                            } else {
+                                None
+                            },
+                            label: opt_number(r.number()?)?,
+                            expression: None,
+                        })
+                    }
                 } else if kind == 2 {
                     None
                 } else {
@@ -426,6 +592,90 @@ pub fn decode_reply(b: &[u8]) -> Result<(i64, Vec<String>)> {
 mod tests {
     #![allow(clippy::unwrap_used, clippy::panic)]
     use super::*;
+    #[test]
+    fn grouped_rules_round_trip_all_predicates_without_changing_legacy_records() {
+        let rules = SmartRules::from_expression(SmartExpr::All(vec![
+            SmartExpr::Any(vec![
+                SmartExpr::Rule(SmartPredicate::Format("PTG, REB, CLIP".into())),
+                SmartExpr::Rule(SmartPredicate::Keyword("painting".into())),
+                SmartExpr::Rule(SmartPredicate::Keyword("drawing".into())),
+            ]),
+            SmartExpr::Any(vec![
+                SmartExpr::Rule(SmartPredicate::MinRating(4)),
+                SmartExpr::Rule(SmartPredicate::MaxRating(2)),
+            ]),
+            SmartExpr::Rule(SmartPredicate::CapturedFrom("2020-01-01".into())),
+            SmartExpr::Rule(SmartPredicate::CapturedTo("2026-12-31".into())),
+            SmartExpr::Rule(SmartPredicate::Camera("camera".into())),
+            SmartExpr::Rule(SmartPredicate::Lens("lens".into())),
+            SmartExpr::Rule(SmartPredicate::Label(3)),
+            SmartExpr::Rule(SmartPredicate::Text("作品".into())),
+        ]))
+        .unwrap();
+        let mut changes = sample();
+        if let Value::Collection(collection) = &mut changes[1].value {
+            collection.rules = Some(rules);
+        }
+        let bytes = encode("catalogue", &changes).unwrap();
+        assert_eq!(decode(&bytes).unwrap().1, changes);
+        let collection_only = encode("catalogue", &changes[1..]).unwrap();
+        // Six magic bytes, length + nine-byte id, then record count.
+        assert_eq!(collection_only.get(23), Some(&4));
+        for end in 0..collection_only.len() {
+            assert!(decode(&collection_only[..end]).is_err());
+        }
+        for index in 0..collection_only.len() {
+            let mut corrupt = collection_only.clone();
+            corrupt[index] ^= 255;
+            assert!(std::panic::catch_unwind(|| decode(&corrupt)).is_ok());
+        }
+        let flat = SmartRules::from_expression(SmartExpr::All(vec![
+            SmartExpr::Rule(SmartPredicate::Camera("Camera".into())),
+            SmartExpr::Rule(SmartPredicate::MinRating(4)),
+        ]))
+        .unwrap();
+        if let Value::Collection(collection) = &mut changes[1].value {
+            collection.rules = Some(flat);
+        }
+        assert_eq!(
+            encode("catalogue", &changes).unwrap(),
+            encode("catalogue", &sample()).unwrap()
+        );
+        if let Value::Collection(collection) = &mut changes[1].value {
+            collection.rules = Some(SmartRules {
+                expression: Some(SmartExpr::All(vec![
+                    SmartExpr::Rule(SmartPredicate::MinRating(4)),
+                    SmartExpr::Rule(SmartPredicate::Camera("Camera".into())),
+                ])),
+                ..Default::default()
+            });
+        }
+        assert!(changes[1].same_value(&sample()[1]));
+    }
+
+    #[test]
+    fn grouped_wire_decoder_bounds_nodes_depth_and_leaf_allocations() {
+        let read = |bytes: &[u8]| decode_expression(&mut Reader { b: bytes, at: 0 }, 0, &mut 0);
+        assert!(read(&[1, 0, 0, 0, 0]).is_err());
+        assert!(read(&[1, 128, 0, 0, 0]).is_err());
+        assert!(read(&[3, 1, 4, 0, 0]).is_err()); // 1,025-byte text before allocation.
+        assert!(read(&[255]).is_err());
+        let mut deep = Vec::new();
+        for _ in 0..9 {
+            deep.extend_from_slice(&[1, 1, 0, 0, 0]);
+        }
+        deep.push(8);
+        deep.extend_from_slice(&4i64.to_le_bytes());
+        assert!(read(&deep).is_err());
+        let mut many = vec![2, 127, 0, 0, 0];
+        for _ in 0..127 {
+            many.push(8);
+            many.extend_from_slice(&4i64.to_le_bytes());
+        }
+        assert!(read(&many).is_ok());
+        many[1] = 128;
+        assert!(read(&many).is_err());
+    }
     #[test]
     fn maximum_rules_use_an_extended_kind_and_legacy_baselines_stay_readable() {
         let legacy = sample();

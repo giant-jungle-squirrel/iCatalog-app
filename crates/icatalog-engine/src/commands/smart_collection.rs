@@ -12,9 +12,21 @@ pub(super) const RULE_KEYS: &[&str] = &[
     "label",
     "keyword",
     "text",
+    "rules-json",
 ];
 
 pub(super) fn parse(params: &Params) -> Result<SmartRules> {
+    if let Some(json) = params.get("rules-json") {
+        if RULE_KEYS
+            .iter()
+            .any(|key| *key != "rules-json" && params.get(key).is_some())
+        {
+            return Err(EngineError::BadParam(
+                "use rules-json or individual rule options, not both".into(),
+            ));
+        }
+        return SmartRules::from_json(json).map_err(|e| EngineError::BadParam(e.to_string()));
+    }
     let text = |key| params.get(key).map(|s| s.trim().to_owned());
     let rules = SmartRules {
         format: text("format"),
@@ -27,6 +39,7 @@ pub(super) fn parse(params: &Params) -> Result<SmartRules> {
         label: params.get_i64("label")?,
         keyword: params.get("keyword").map(str::to_owned),
         text: text("text"),
+        ..Default::default()
     };
     rules
         .validate()
@@ -46,6 +59,13 @@ pub(super) fn run(ctx: &mut Context, params: &Params) -> Result<Outcome> {
             )))
         }
         "rules" | "set-rules" => {
+            if let Some(output) = params.get("output") {
+                if output != "json" {
+                    return Err(EngineError::BadParam(
+                        "collection rules output must be json (omit for readable rules)".into(),
+                    ));
+                }
+            }
             let id = super::collection::require_id(ctx, params, "id")?;
             let Some(mut rules) = ctx.catalog().smart_rules(id)? else {
                 return Err(EngineError::BadParam(
@@ -59,6 +79,12 @@ pub(super) fn run(ctx: &mut Context, params: &Params) -> Result<Outcome> {
                     ctx.catalog().rename_collection(id, name)?;
                 }
                 ctx.catalog().set_smart_rules(id, &rules)?;
+            }
+            if params.get("output") == Some("json") {
+                return Ok(Outcome::text(rules.to_json()?));
+            }
+            if rules.expression.is_some() {
+                return Ok(Outcome::text(rules.summary()));
             }
             let pairs = [
                 ("format", rules.format),

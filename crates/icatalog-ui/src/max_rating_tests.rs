@@ -2,6 +2,7 @@
 use super::*;
 
 fn set_stars(h: &mut Harness<'_, App>, field: &str, key: egui::Key) {
+    ensure_smart_rule(h, field);
     h.get_by_label(&format!("{field} 1")).focus();
     h.run_steps(2);
     h.key_press(key);
@@ -31,10 +32,12 @@ fn maximum_stars_preview_save_validate_cancel_clear_and_reopen_at_native_scales(
             h.get_by_label("Name").type_text("Range");
             h.get_by_label("Smart Collection").click();
             settle(&mut h);
+            ensure_smart_rule(&mut h, "Maximum Rating");
             h.get_by_label("Maximum Rating 4").click();
             settle(&mut h);
             assert!(h.query_by_label("2 matching items").is_some());
             assert!(h.query_by_label("Rating is at most 4 out of 5").is_some());
+            ensure_smart_rule(&mut h, "Minimum Rating");
             h.get_by_label("Minimum Rating 2").click();
             settle(&mut h);
             assert!(h.query_by_label("1 matching item").is_some());
@@ -65,19 +68,10 @@ fn maximum_stars_preview_save_validate_cancel_clear_and_reopen_at_native_scales(
             );
             h.get_by_label("Maximum Rating 1").click();
             settle(&mut h);
-            assert!(h.query_by_label("Preview unavailable").is_some());
+            // Independent conditions in an All group may be contradictory;
+            // they match no assets rather than changing meaning across groups.
+            assert!(h.query_by_label("0 matching items").is_some());
             assert!(h.query_by_label("1 matching item").is_none());
-            h.get_by_label("Save").click();
-            settle(&mut h);
-            assert!(h
-                .state()
-                .create_collection
-                .as_ref()
-                .unwrap()
-                .error
-                .as_ref()
-                .unwrap()
-                .contains("minimum rating must not exceed maximum rating"));
             assert_eq!(
                 h.get_by_label("Maximum Rating").value().as_deref(),
                 Some("1 out of 5")
@@ -86,15 +80,17 @@ fn maximum_stars_preview_save_validate_cancel_clear_and_reopen_at_native_scales(
                 c.catalog().smart_rules(1).unwrap().unwrap().max_rating,
                 Some(4)
             );
+            ensure_smart_rule(&mut h, "Maximum Rating");
             h.get_by_label("Maximum Rating 4").click();
             settle(&mut h);
+            ensure_smart_rule(&mut h, "Maximum Rating");
             h.get_by_label("Maximum Rating 4").click();
             settle(&mut h);
             assert_eq!(
                 h.get_by_label("Maximum Rating").value().as_deref(),
                 Some("Not set")
             );
-            assert!(h.query_by_label("2 matching items").is_some());
+            assert!(h.query_by_label("Preview unavailable").is_some());
             h.get_by_label("Cancel").click();
             settle(&mut h);
             assert_eq!(
@@ -104,6 +100,8 @@ fn maximum_stars_preview_save_validate_cancel_clear_and_reopen_at_native_scales(
 
             open_rules(&mut h, "Range");
             set_stars(&mut h, "Maximum Rating", egui::Key::Delete);
+            assert!(h.query_by_label("Preview unavailable").is_some());
+            remove_smart_rule(&mut h, "Maximum Rating");
             h.get_by_label("Save").click();
             settle(&mut h);
             assert_eq!(
@@ -112,7 +110,7 @@ fn maximum_stars_preview_save_validate_cancel_clear_and_reopen_at_native_scales(
             );
             assert_eq!(c.catalog().collection_assets(1).unwrap(), vec![1, 2]);
             open_rules(&mut h, "Range");
-            set_stars(&mut h, "Minimum Rating", egui::Key::Delete);
+            remove_smart_rule(&mut h, "Minimum Rating");
             set_stars(&mut h, "Maximum Rating", egui::Key::Num0);
             assert!(h.query_by_label("1 matching item").is_some());
             h.get_by_label("Save").click();

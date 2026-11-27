@@ -185,6 +185,9 @@ fn smart_rating_stars_preserve_zero_and_clear_a_rule_without_writes_on_cancel() 
         h.get_by_label("Minimum Rating").value().as_deref(),
         Some("Not set")
     );
+    assert!(h.query_by_label("Preview unavailable").is_some());
+    remove_smart_rule(&mut h, "Minimum Rating");
+    settle(&mut h);
     assert!(h.query_by_label("3 matching items").is_some());
     h.get_by_label("Save").click();
     settle(&mut h);
@@ -195,6 +198,7 @@ fn smart_rating_stars_preserve_zero_and_clear_a_rule_without_writes_on_cancel() 
     assert_eq!(ctx.catalog().collection_assets(id).unwrap(), vec![1, 2, 3]);
     // Zero is a real minimum rule, distinct from the cleared optional value.
     open_rules(&mut h);
+    ensure_smart_rule(&mut h, "Minimum Rating");
     h.get_by_label("Minimum Rating 1").focus();
     h.run_steps(2);
     h.key_press(egui::Key::Num0);

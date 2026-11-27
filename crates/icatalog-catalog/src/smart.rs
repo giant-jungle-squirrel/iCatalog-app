@@ -1,9 +1,12 @@
-//! Bounded, non-recursive Smart Collection rules; all present rules are ANDed.
-use crate::{Catalog, CatalogError, Result};
-use rusqlite::{params, OptionalExtension};
+//! Bounded Smart Collection rules and legacy AND-field compatibility.
+pub use crate::smart_expr::{SmartExpr, SmartPredicate};
+pub(crate) use crate::smart_storage::{membership_sql, SMART_MATCH};
+use crate::{CatalogError, Result};
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SmartRules {
+    /// A grouped expression; cannot be combined with the legacy fields below.
+    pub expression: Option<SmartExpr>,
     /// Any listed format, ignoring ASCII case; separate with commas, semicolons
     /// or spaces. Leading dots and JPG/JPE/TIF extension aliases are accepted.
     pub format: Option<String>,
@@ -29,6 +32,14 @@ impl SmartRules {
     }
 
     pub fn validate(&self) -> Result<()> {
+        if let Some(expression) = &self.expression {
+            if self.has_legacy_fields() {
+                return Err(CatalogError::InvalidQuery(
+                    "grouped rules cannot be combined with legacy fields",
+                ));
+            }
+            return expression.validate();
+        }
         let texts = [
             &self.format,
             &self.captured_from,
@@ -138,108 +149,4 @@ fn valid_date(value: &str) -> bool {
         _ => return false,
     };
     (1..=days).contains(&day)
-}
-
-// These expressions only interpolate trusted SQL. User rule values remain in
-// typed columns; no stored SQL, recursion or per-collection parameter expansion.
-pub(crate) const SMART_MATCH: &str = "
- (sc.format IS NULL OR icatalog_format_matches(asset.format, sc.format))
- AND (sc.captured_from IS NULL OR EXISTS (SELECT 1 FROM asset_meta m WHERE m.asset_id=asset.id AND substr(m.captured_local,1,10)>=sc.captured_from))
- AND (sc.captured_to IS NULL OR EXISTS (SELECT 1 FROM asset_meta m WHERE m.asset_id=asset.id AND substr(m.captured_local,1,10)<=sc.captured_to))
- AND (sc.camera IS NULL OR EXISTS (SELECT 1 FROM asset_meta m WHERE m.asset_id=asset.id AND icatalog_contains_ci(coalesce(m.make,'') || ' ' || coalesce(m.model,''),sc.camera)))
- AND (sc.lens IS NULL OR EXISTS (SELECT 1 FROM asset_meta m WHERE m.asset_id=asset.id AND icatalog_contains_ci(m.lens,sc.lens)))
- AND (sc.min_rating IS NULL OR coalesce((SELECT rating FROM annotation WHERE asset_id=asset.id),0)>=sc.min_rating)
- AND (sc.max_rating IS NULL OR coalesce((SELECT rating FROM annotation WHERE asset_id=asset.id),0)<=sc.max_rating)
- AND (sc.label IS NULL OR coalesce((SELECT label FROM annotation WHERE asset_id=asset.id),0)=sc.label)
- AND (sc.keyword IS NULL OR EXISTS (SELECT 1 FROM asset_keyword ak JOIN keyword k ON k.id=ak.keyword_id WHERE ak.asset_id=asset.id AND k.name=sc.keyword))
- AND (sc.text IS NULL OR icatalog_contains_ci(asset.name,sc.text) OR icatalog_contains_ci(asset.path,sc.text))";
-
-pub(crate) fn membership_sql() -> String {
-    format!("((sc.collection_id IS NULL AND EXISTS (SELECT 1 FROM collection_asset ca WHERE ca.collection_id=c.id AND ca.asset_id=asset.id)) OR (sc.collection_id IS NOT NULL AND ({SMART_MATCH})))")
-}
-
-impl Catalog {
-    /// Count an unsaved rule set using exactly the saved membership predicate.
-    /// No temporary collections or membership rows are written.
-    pub fn count_smart_matches(&self, rules: &SmartRules) -> Result<i64> {
-        rules.validate()?;
-        Ok(self.conn.query_row(
-            &format!("WITH sc(format,captured_from,captured_to,camera,lens,min_rating,max_rating,label,keyword,text)
-                AS (VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10))
-                SELECT COUNT(*) FROM asset CROSS JOIN sc WHERE {SMART_MATCH}"),
-            params![rules.format,rules.captured_from,rules.captured_to,rules.camera,rules.lens,
-                rules.min_rating,rules.max_rating,rules.label,rules.keyword,rules.text],
-            |row| row.get(0),
-        )?)
-    }
-
-    pub fn smart_rules(&self, id: i64) -> Result<Option<SmartRules>> {
-        // A corrupt database must not allocate arbitrary text before validation.
-        // Oversized text becomes an invalid empty rule, never an omitted rule.
-        let columns = [
-            "format",
-            "captured_from",
-            "captured_to",
-            "camera",
-            "lens",
-            "min_rating",
-            "label",
-            "keyword",
-            "text",
-            "max_rating",
-        ]
-        .map(|name| {
-            if matches!(name, "min_rating" | "max_rating" | "label") {
-                name.to_owned()
-            } else {
-                format!("CASE WHEN length(CAST({name} AS BLOB))>1024 THEN '' ELSE {name} END")
-            }
-        })
-        .join(",");
-        let rules = self
-            .conn
-            .query_row(
-                &format!("SELECT {columns} FROM smart_collection WHERE collection_id=?1"),
-                [id],
-                |r| {
-                    Ok(SmartRules {
-                        format: r.get(0)?,
-                        captured_from: r.get(1)?,
-                        captured_to: r.get(2)?,
-                        camera: r.get(3)?,
-                        lens: r.get(4)?,
-                        min_rating: r.get(5)?,
-                        label: r.get(6)?,
-                        keyword: r.get(7)?,
-                        text: r.get(8)?,
-                        max_rating: r.get(9)?,
-                    })
-                },
-            )
-            .optional()?;
-        if let Some(rules) = &rules {
-            rules.validate()?;
-        }
-        Ok(rules)
-    }
-
-    /// The caller's transaction groups this with collection creation.
-    pub fn set_smart_rules(&self, id: i64, rules: &SmartRules) -> Result<()> {
-        rules.validate()?;
-        self.conn.execute("INSERT INTO smart_collection(collection_id,format,captured_from,captured_to,camera,lens,min_rating,max_rating,label,keyword,text)
-            VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11)
-            ON CONFLICT(collection_id) DO UPDATE SET format=excluded.format,captured_from=excluded.captured_from,captured_to=excluded.captured_to,camera=excluded.camera,lens=excluded.lens,min_rating=excluded.min_rating,max_rating=excluded.max_rating,label=excluded.label,keyword=excluded.keyword,text=excluded.text
-            WHERE smart_collection.format IS NOT excluded.format
-               OR smart_collection.captured_from IS NOT excluded.captured_from
-               OR smart_collection.captured_to IS NOT excluded.captured_to
-               OR smart_collection.camera IS NOT excluded.camera
-               OR smart_collection.lens IS NOT excluded.lens
-               OR smart_collection.min_rating IS NOT excluded.min_rating
-               OR smart_collection.max_rating IS NOT excluded.max_rating
-               OR smart_collection.label IS NOT excluded.label
-               OR smart_collection.keyword IS NOT excluded.keyword
-               OR smart_collection.text IS NOT excluded.text",
-            params![id,rules.format,rules.captured_from,rules.captured_to,rules.camera,rules.lens,rules.min_rating,rules.max_rating,rules.label,rules.keyword,rules.text])?;
-        Ok(())
-    }
 }

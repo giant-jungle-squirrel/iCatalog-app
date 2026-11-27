@@ -118,6 +118,9 @@ pub fn sync_once_with_requirement(
 /// treat the local generation as the server baseline.
 pub(crate) fn recover_staged_snapshot(ctx: &mut Context) -> Result<bool> {
     let Some(record) = crate::journal::staged_snapshot(ctx)? else {
+        if ctx.migrations_deferred() {
+            ctx.resume_after_sync_recovery()?;
+        }
         return Ok(false);
     };
     let expected_id = ctx
@@ -245,6 +248,10 @@ pub(crate) fn recover_staged_snapshot(ctx: &mut Context) -> Result<bool> {
         crate::journal::clear_conflicts(ctx)?;
         ctx.set_sync_required(false)?;
     }
+    // The durable digest no longer guards an interrupted replacement. Only now
+    // may opening the installed catalogue migrate its schema and advance its
+    // generation; a crash before this point must retain the recorded bytes.
+    ctx.resume_after_sync_recovery()?;
     Ok(true)
 }
 
@@ -450,6 +457,7 @@ fn sync_locked(ctx: &mut Context, t: &dyn Transport, base: &str) -> Result<SyncR
         crate::journal::clear_conflicts(ctx)?;
         ctx.set_sync_required(false)?;
     }
+    ctx.resume_after_sync_recovery()?;
     ctx.report_progress(icatalog_engine::SyncProgress {
         phase: icatalog_engine::SyncPhase::Complete,
         completed: Some(download.bytes),

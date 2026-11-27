@@ -23,6 +23,8 @@ mod preview;
 mod query;
 mod replication;
 mod smart;
+mod smart_expr;
+mod smart_storage;
 mod source;
 pub mod sync_state;
 
@@ -33,7 +35,7 @@ pub use preview::{valid_hash as valid_preview_hash, Preview, MAX_PREVIEW_BYTES};
 pub use query::{AssetQuery, CatalogStats};
 pub use replication::{AnnotationState, CollectionState};
 pub use replication::{MAX_SYNC_BYTES, MAX_SYNC_ROWS};
-pub use smart::SmartRules;
+pub use smart::{SmartExpr, SmartPredicate, SmartRules};
 
 /// Shared user-facing product name; executable, crate and file names stay lowercase.
 pub const APP_NAME: &str = "iCatalog";
@@ -57,6 +59,7 @@ const MIGRATIONS: &[&str] = &[
     include_str!("v6.sql"),
     include_str!("v7.sql"),
     include_str!("v8.sql"),
+    include_str!("v9.sql"),
 ];
 
 /// Errors from opening, migrating or querying a catalogue.
@@ -277,6 +280,7 @@ fn sqlite_literal_path(path: &Path) -> std::path::PathBuf {
 }
 
 fn register_text_search(conn: &Connection) -> Result<()> {
+    smart_storage::register(conn)?;
     use caseless::default_case_fold_str;
 
     conn.create_scalar_function(
@@ -323,6 +327,7 @@ impl Catalog {
             ));
         }
         register_text_search(&conn)?;
+        smart_storage::legacy_read_view(&conn)?;
         Ok(Catalog { conn })
     }
 
@@ -406,6 +411,7 @@ impl Catalog {
         validate_existing(&conn, false)?;
         conn.execute_batch("PRAGMA foreign_keys = ON;")?;
         register_text_search(&conn)?;
+        smart_storage::legacy_read_view(&conn)?;
         Ok(Catalog { conn })
     }
 

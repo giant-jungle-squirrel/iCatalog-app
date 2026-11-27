@@ -2,6 +2,13 @@
 use super::*;
 
 fn replace_rule(h: &mut Harness<'_, App>, label: &str, text: &str) {
+    if label != "Name" {
+        if text.is_empty() {
+            remove_smart_rule(h, label);
+            return;
+        }
+        ensure_smart_rule(h, label);
+    }
     if matches!(label, "Minimum Rating" | "Maximum Rating") {
         h.get_by_label(&format!("{label} 1")).click();
         h.run_steps(2);
@@ -318,13 +325,7 @@ fn unsaved_rules_preview_updates_counts_summary_and_validation_without_writes() 
     assert!(h.query_by_label("1 matching item").is_some());
     replace_rule(&mut h, "Camera Contains", &"Long camera name ".repeat(50));
     settle(&mut h);
-    for label in [
-        "Minimum Rating",
-        "Maximum Rating",
-        "Filename or Path Contains",
-        "Cancel",
-        "Create",
-    ] {
+    for label in ["Minimum Rating", "Camera Contains", "Cancel", "Create"] {
         let rect = h.get_by_label(label).rect();
         assert!(
             rect.top() >= 0.0 && rect.bottom() <= 600.0,
@@ -407,6 +408,7 @@ fn smart_minimum_rating_stars_can_be_selected_and_saved() {
     h.get_by_label("Smart Collection").click();
     settle(&mut h);
     h.run_steps(10);
+    ensure_smart_rule(&mut h, "Minimum Rating");
     h.get_by_label("Minimum Rating 4").click();
     h.run_steps(2);
     h.get_by_label("Create").click();
@@ -472,9 +474,8 @@ fn smart_rules_fit_a_narrow_window_and_all_fields_remain_reachable() {
         "Label Number",
         "Keyword",
         "Filename or Path Contains",
-        "Cancel",
-        "Create",
     ] {
+        add_smart_rule(&mut h, label);
         let rect = h.get_by_label(label).rect();
         assert!(
             rect.left() >= 0.0
@@ -483,11 +484,13 @@ fn smart_rules_fit_a_narrow_window_and_all_fields_remain_reachable() {
                 && rect.bottom() <= 600.0,
             "{label}: {rect:?}"
         );
+        remove_smart_rule(&mut h, label);
     }
-    h.get_by_label("Filename or Path Contains").click();
-    h.run_steps(2);
-    h.get_by_label("Filename or Path Contains").type_text("Red");
-    h.run_steps(2);
+    replace_rule(&mut h, "Filename or Path Contains", "Red");
+    for label in ["Cancel", "Create"] {
+        let rect = h.get_by_label(label).rect();
+        assert!(rect.top() >= 0.0 && rect.bottom() <= 600.0);
+    }
     h.get_by_label("Create").click();
     settle(&mut h);
     let c = open_catalogue(&fixture.path()).unwrap();
@@ -563,7 +566,7 @@ fn smart_create_validate_edit_cancel_and_reopen() {
         h.state().create_collection.as_ref().is_some_and(|d| d
             .error
             .as_ref()
-            .is_some_and(|e| e.contains("at least one rule"))),
+            .is_some_and(|e| e.contains("rule") || e.contains("group"))),
         "status={}, dialog={:?}",
         h.state().status,
         h.state()
@@ -572,6 +575,7 @@ fn smart_create_validate_edit_cancel_and_reopen() {
             .map(|d| (&d.name, d.smart, &d.error))
     );
     assert!(h.state().collections.is_empty());
+    ensure_smart_rule(&mut h, "Format");
     h.get_by_label("Format").click();
     h.run_steps(2);
     h.get_by_label("Format").type_text("JPEG");
@@ -588,6 +592,7 @@ fn smart_create_validate_edit_cancel_and_reopen() {
     h.get_by_label("Edit Rules…").click();
     settle(&mut h);
     assert!(!h.get_by_label("Name").accesskit_node().is_disabled());
+    ensure_smart_rule(&mut h, "Captured From");
     h.get_by_label("Captured From").click();
     h.run_steps(2);
     h.get_by_label("Captured From").type_text("2023-02-29");
@@ -735,11 +740,12 @@ fn smart_save_rules_failure_retry_and_busy_controls() {
         .unwrap()
         .contains("1024"));
     replace_rule(&mut h, "Name", "Renamed picks");
+    ensure_smart_rule(&mut h, "Camera Contains");
     h.get_by_label("Camera Contains").click();
     h.run_steps(2);
     h.get_by_label("Camera Contains").type_text("Missing");
     h.run_steps(2);
-    c.catalog().connection().execute_batch("CREATE TRIGGER reject_rules BEFORE UPDATE ON smart_collection BEGIN SELECT RAISE(ABORT,'synthetic rules failure'); END;").unwrap();
+    c.catalog().connection().execute_batch("CREATE TRIGGER reject_rules BEFORE INSERT ON smart_rule_node BEGIN SELECT RAISE(ABORT,'synthetic rules failure'); END;").unwrap();
     h.get_by_label("Save").click();
     settle(&mut h);
     assert!(h
@@ -800,4 +806,110 @@ fn smart_save_rules_failure_retry_and_busy_controls() {
             .as_deref(),
         Some("Missing")
     );
+}
+
+fn choose_group_operator(h: &mut Harness<'_, App>, group: &str, all: bool) {
+    h.get_by_label(&format!("Match group {group}")).click();
+    h.run_steps(2);
+    h.get_by_label(if all { "Use All (AND)" } else { "Use Any (OR)" })
+        .click();
+    settle(h);
+}
+
+#[test]
+fn painting_or_and_rules_preview_save_and_reopen_in_both_themes() {
+    for theme in [egui::Theme::Dark, egui::Theme::Light] {
+        let fixture = Fixture::new();
+        let c = open_catalogue(&fixture.path()).unwrap();
+        c.catalog().connection().execute_batch("UPDATE asset SET format=CASE id WHEN 1 THEN 'PTG' ELSE 'PNG' END; INSERT INTO keyword(id,name) VALUES(1,'painting'); INSERT INTO asset_keyword(asset_id,keyword_id) VALUES(2,1);").unwrap();
+        let mut h = fixture.harness_with_display([800.0, 600.0], 1.0, theme);
+        h.get_by_label("New Collection…").click();
+        settle(&mut h);
+        h.get_by_label("Name").type_text("Paintings");
+        h.get_by_label("Smart Collection").click();
+        settle(&mut h);
+        replace_rule(&mut h, "Format", "PTG, REB, CLIP");
+        replace_rule(&mut h, "Keyword", "painting");
+        choose_group_operator(&mut h, "1", false);
+        assert!(h.query_by_label("2 matching items").is_some());
+        assert!(c.catalog().all_collections().unwrap().is_empty());
+        h.get_by_label("Create").click();
+        settle(&mut h);
+        assert_eq!(c.catalog().collection_assets(1).unwrap(), vec![1, 2]);
+        h.get_by_label("Paintings (Smart)").click_secondary();
+        settle(&mut h);
+        h.get_by_label("Edit Rules…").click();
+        settle(&mut h);
+        assert_eq!(
+            h.get_by_label("Format").value().as_deref(),
+            Some("PTG, REB, CLIP")
+        );
+        choose_group_operator(&mut h, "1", true);
+        assert!(h.query_by_label("0 matching items").is_some());
+        h.get_by_label("Save").click();
+        settle(&mut h);
+        assert!(c.catalog().collection_assets(1).unwrap().is_empty());
+        c.catalog()
+            .connection()
+            .execute_batch("INSERT INTO asset_keyword(asset_id,keyword_id) VALUES(1,1)")
+            .unwrap();
+        assert_eq!(c.catalog().collection_assets(1).unwrap(), vec![1]);
+    }
+}
+
+#[test]
+fn nested_groups_repeated_keywords_and_removal_use_real_controls() {
+    let fixture = Fixture::new();
+    let c = open_catalogue(&fixture.path()).unwrap();
+    c.catalog().connection().execute_batch("INSERT INTO keyword(id,name) VALUES(1,'painting'),(2,'drawing'); INSERT INTO asset_keyword(asset_id,keyword_id) VALUES(1,1),(2,2),(3,2); INSERT INTO annotation(asset_id,rating) VALUES(1,5),(2,4),(3,2);").unwrap();
+    let mut h = fixture.harness([800.0, 600.0]);
+    h.get_by_label("New Collection…").click();
+    settle(&mut h);
+    h.get_by_label("Name").type_text("Art picks");
+    h.get_by_label("Smart Collection").click();
+    settle(&mut h);
+    h.get_by_label("Add Group").click();
+    settle(&mut h);
+    assert!(h.query_by_label("Preview unavailable").is_some());
+    choose_group_operator(&mut h, "1.1", false);
+    for (index, value) in [(1, "painting"), (2, "drawing")] {
+        h.get_by_label("Add Rule to group 1.1").click();
+        h.run_steps(3);
+        h.get_by_label(&format!("Field for rule 1.1.{index}"))
+            .click();
+        h.run_steps(2);
+        h.get_by_label("Use Keyword").scroll_to_me();
+        h.run_steps(5);
+        h.get_by_label("Use Keyword").click();
+        h.run_steps(3);
+        h.get_all(By::new().label("Keyword"))
+            .last()
+            .unwrap()
+            .click();
+        h.run_steps(2);
+        h.get_all(By::new().label("Keyword"))
+            .last()
+            .unwrap()
+            .type_text(value);
+        settle(&mut h);
+    }
+    replace_rule(&mut h, "Minimum Rating", "4");
+    settle(&mut h);
+    assert!(h.query_by_label("2 matching items").is_some());
+    h.get_by_label("Create").click();
+    settle(&mut h);
+    assert_eq!(c.catalog().collection_assets(1).unwrap(), vec![1, 2]);
+    h.get_by_label("Art picks (Smart)").click_secondary();
+    settle(&mut h);
+    h.get_by_label("Edit Rules…").click();
+    settle(&mut h);
+    h.get_by_label("Remove rule 1.1.2").click();
+    settle(&mut h);
+    assert!(h.query_by_label("1 matching item").is_some());
+    h.get_by_label("Remove Group").click();
+    settle(&mut h);
+    assert!(h.query_by_label("2 matching items").is_some());
+    h.get_by_label("Cancel").click();
+    settle(&mut h);
+    assert_eq!(c.catalog().collection_assets(1).unwrap(), vec![1, 2]);
 }

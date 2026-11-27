@@ -1677,10 +1677,8 @@ impl App {
             .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(12))
             .show(ctx, |ui| {
                 spacing::dialog(ui);
-                ui.set_width(if dialog.editing_id.is_some() {
-                    464.0
-                } else if dialog.smart {
-                    440.0
+                ui.set_width(if dialog.editing_id.is_some() || dialog.smart {
+                    580.0
                 } else {
                     300.0
                 });
@@ -1697,15 +1695,9 @@ impl App {
                 );
                 ui.add_enabled_ui(!dialog.pending, |ui| {
                     let name = if dialog.rename_id.is_some() || dialog.editing_id.is_some() {
-                        let label_width = if dialog.editing_id.is_some() {
-                            smart_collection::RuleInputs::label_column_width(ui)
-                                + f32::from(fieldset::HORIZONTAL_MARGIN)
-                        } else {
-                            0.0
-                        };
                         egui::Grid::new("collection_name")
                             .num_columns(2)
-                            .min_col_width(label_width)
+                            .min_col_width(0.0)
                             .spacing(egui::vec2(16.0, 6.0))
                             .show(ui, |ui| {
                                 let label = ui.label("Name");

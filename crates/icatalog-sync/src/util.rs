@@ -173,7 +173,9 @@ pub fn backup_local(local: &Path) -> Result<Option<PathBuf>> {
 
 /// Verify that `path` is a valid iCatalog catalogue with the expected id.
 pub fn verify_catalogue(path: &Path, expect_id: &str) -> Result<()> {
-    let catalog = icatalog_catalog::Catalog::open_existing(path)?;
+    // Verification must preserve the bytes being checked. Recovery calls this
+    // for both the only backup and a snapshot whose digest is already journaled.
+    let catalog = icatalog_catalog::Catalog::open_read_only(path)?;
     let row = catalog.catalogue()?.ok_or_else(|| {
         SyncError::Integrity(format!("not an {} catalogue", icatalog_catalog::APP_NAME))
     })?;

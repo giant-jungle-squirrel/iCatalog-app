@@ -584,16 +584,16 @@ impl App {
                             for shared in &conflict.shared {
                                 ui.group(|ui| {
                                     ui.strong(format!("{} · shared value", shared.field));
-                                    ui.label(value_label(&shared.value));
+                                    conflict_value(ui, &shared.value, (&conflict.key, &shared.field, "shared"), "shared value");
                                 });
                             }
                             for field in &conflict.fields {
                                 ui.group(|ui| {
                                     ui.strong(&field.field);
                                     ui.label("Your saved edits");
-                                    ui.add(egui::Label::new(value_label(&field.local)).wrap());
+                                    conflict_value(ui, &field.local, (&conflict.key, &field.field, "local"), "your saved edits");
                                     ui.label("Server version from the last sync");
-                                    ui.add(egui::Label::new(value_label(&field.server)).wrap());
+                                    conflict_value(ui, &field.server, (&conflict.key, &field.field, "server"), "server version");
                                     let current = field.choice;
                                     ui.horizontal_wrapped(|ui| {
                                         for (label, choice) in [
@@ -1475,32 +1475,34 @@ fn value_label(value: &icatalog_engine::SyncValue) -> String {
             bounded_value_text(&rendered, MAX_RENDERED_CONFLICT_VALUE_CHARS)
         }
         icatalog_engine::SyncValue::Rules(rules) => {
-            let mut fields = Vec::new();
-            for (label, value) in [
-                ("format", rules.format.as_deref()),
-                ("captured from", rules.captured_from.as_deref()),
-                ("captured to", rules.captured_to.as_deref()),
-                ("camera", rules.camera.as_deref()),
-                ("lens", rules.lens.as_deref()),
-                ("keyword", rules.keyword.as_deref()),
-                ("text", rules.text.as_deref()),
-            ] {
-                if let Some(value) = value {
-                    fields.push(format!("{label}: {}", bounded_value_text(value, 48)));
-                }
-            }
-            for (label, value) in [
-                ("min rating", rules.min_rating),
-                ("max rating", rules.max_rating),
-                ("label", rules.label),
-            ] {
-                if let Some(value) = value {
-                    fields.push(format!("{label}: {value}"));
-                }
-            }
-            bounded_value_text(&fields.join(" · "), MAX_RENDERED_CONFLICT_VALUE_CHARS)
+            bounded_value_text(&rules.summary, MAX_RENDERED_CONFLICT_VALUE_CHARS)
         }
         icatalog_engine::SyncValue::None => "(empty)".into(),
+    }
+}
+
+fn conflict_value(
+    ui: &mut egui::Ui,
+    value: &icatalog_engine::SyncValue,
+    id: impl std::hash::Hash + std::fmt::Debug,
+    source: &str,
+) {
+    ui.add(egui::Label::new(value_label(value)).wrap());
+    if let icatalog_engine::SyncValue::Rules(rules) = value {
+        if rules.summary.chars().count() > MAX_RENDERED_CONFLICT_VALUE_CHARS {
+            egui::CollapsingHeader::new(format!("Full rules — {source}"))
+                .id_salt(id)
+                .show(ui, |ui| {
+                    // Valid expressions are capped at 64 KiB. Leave room for
+                    // readable predicate captions while also bounding forged DTOs.
+                    let full = bounded_value_text(&rules.summary, 128 * 1024);
+                    egui::ScrollArea::vertical()
+                        .max_height(140.0)
+                        .show(ui, |ui| {
+                            ui.add(egui::Label::new(full).wrap().selectable(true));
+                        });
+                });
+        }
     }
 }
 
@@ -1510,6 +1512,75 @@ mod tests {
     use super::*;
 
     const CATALOGUE_ID: &str = "synthetic-catalogue";
+
+    #[test]
+    fn grouped_rule_conflict_summary_preserves_logic_and_is_bounded() {
+        let summary = "(Format is PTG OR Keyword is painting) AND Rating is at least 4";
+        assert_eq!(
+            value_label(&icatalog_engine::SyncValue::Rules(
+                icatalog_engine::SyncRules {
+                    summary: summary.into()
+                }
+            )),
+            summary
+        );
+        let value = value_label(&icatalog_engine::SyncValue::Rules(
+            icatalog_engine::SyncRules {
+                summary: "🖼".repeat(100_000),
+            },
+        ));
+        assert!(value.chars().count() <= MAX_RENDERED_CONFLICT_VALUE_CHARS + 1);
+        assert!(value.ends_with('…'));
+    }
+
+    #[test]
+    fn expanded_rules_expose_late_conflict_differences_and_keep_actions_visible() {
+        use egui_kittest::{kittest::Queryable, Harness};
+        let prefix = format!("Filename or path contains \"{}\" OR ", "x ".repeat(300));
+        let local = format!("{prefix}Keyword is painting");
+        let server = format!("{prefix}Keyword is drawing");
+        for theme in [egui::Theme::Dark, egui::Theme::Light] {
+            let mut harness = Harness::builder()
+                .with_size([800.0, 600.0])
+                .with_theme(theme)
+                .build_ui(|ui| {
+                    ui.columns(2, |columns| {
+                        conflict_value(
+                            &mut columns[0],
+                            &icatalog_engine::SyncValue::Rules(icatalog_engine::SyncRules {
+                                summary: local.clone(),
+                            }),
+                            "local-test",
+                            "your saved edits",
+                        );
+                        conflict_value(
+                            &mut columns[1],
+                            &icatalog_engine::SyncValue::Rules(icatalog_engine::SyncRules {
+                                summary: server.clone(),
+                            }),
+                            "server-test",
+                            "server version",
+                        );
+                    });
+                    let _ = ui.button("Apply choices");
+                });
+            harness.run_steps(4);
+            assert!(harness.query_by_label(&local).is_none());
+            harness
+                .get_by_label("Full rules — your saved edits")
+                .click();
+            harness.run_steps(8);
+            assert!(harness.query_by_label(&local).is_some());
+            harness.get_by_label("Full rules — server version").click();
+            harness.run_steps(8);
+            assert!(harness.query_by_label(&server).is_some());
+            let actions = harness.get_by_label("Apply choices").rect();
+            assert!(
+                actions.top() >= 0.0 && actions.bottom() < 600.0,
+                "{actions:?}"
+            );
+        }
+    }
 
     #[test]
     fn conflict_value_rendering_bounds_large_text_and_sets() {

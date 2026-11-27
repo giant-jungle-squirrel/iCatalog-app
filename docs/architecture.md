@@ -24,7 +24,7 @@ The shared user-facing name is `icatalog_catalog::APP_NAME`. The catalogue crate
 | Crate | Layer | Depends on | Role | Status |
 |---|---|---|---|---|
 | `ivc` (`ivc-file-research/crates/ivc`) | L0 | nothing in the workspace | Legacy `.ivc` parser | EXISTS |
-| `icatalog-catalog` | L1 | `ivc` (for import mapping, Proposed), `rusqlite` (`bundled`, `functions`) | SQLite schema (migrations v1-v8) + model + CRUD + `AssetQuery`/`CatalogStats` (`query_assets`, `stats`) | EXISTS |
+| `icatalog-catalog` | L1 | `ivc` (for import mapping, Proposed), `rusqlite` (`bundled`, `functions`) | SQLite schema (migrations v1-v9) + model + CRUD + `AssetQuery`/`CatalogStats` (`query_assets`, `stats`) | EXISTS |
 | `icatalog-media` | L1 | `image` 0.25, `kamadak-exif`, `sha2` (no workspace dependency) | Raster probe, EXIF read, grid JPEG thumbnails, content hash, RGBA decode (D8, D13); optional EXIF orientation for thumbnails/display (D31); `raw` (embedded JPEG preview of DNG/CR2/NEF/ARW/PEF/RAF/CR3) and `xmp` (packet locate + tolerant parse) modules (D17) | EXISTS |
 | `icatalog-engine` | L2 | L0-L1 | Session `Context` + command registry; commands `init`, `open`, `import`, `list`, `find`, `status`, `update`, `edit`, `collection`, `previews`, `preview`; `dispatch_guarded` panic guard (D12, D14, D16) | EXISTS |
 | `icatalog-sync` | L3 | L0-L2, `tiny_http`, `ureq`, Rustls and security configuration helpers | Protocol v2 (D20/D44): NAS-side `serve`, verified replica `clone` (D45), revision-checked annotation/Collection uploads, catalogue/preview pulls, embedded replica baseline, per-entity conflict backups, verified atomic replacement; exposes its own command registry | EXISTS |
@@ -42,7 +42,7 @@ Container packaging (D60) reuses those static binaries and validates their ELF b
 
 Smart Collection Format alternatives (D109) retain the bounded text column and existing command/sync representation. A catalogue-owned SQLite scalar function matches tokens and extension aliases; preview, membership, counts and filtered queries share that predicate. The engine formats the list summary; the desktop only transports the input. No schema migration or dependency is needed.
 
-Smart Collection previews (D37) dispatch the read-only `collection preview-smart` action from a separate desktop worker after a 200 ms typing pause. The engine validates the draft and produces its count and readable AND summary; the catalogue counts against the shared saved-membership SQL predicate. The shell holds draft/worker state and discards stale responses. No temporary collection, new layer, dependency or schema is needed.
+Smart Collection previews (D37) dispatch the read-only `collection preview-smart` action from a separate desktop worker after a 200 ms typing pause. The engine validates the draft and produces its count and readable grouped AND/OR summary; the catalogue counts against the shared saved-membership SQL predicate. The shell holds draft/worker state and discards stale responses. No temporary collection is created; D117 extends the shared model and schema for grouped rules.
 
 Preview generation and storage conversion prune blobs no longer referenced by
 assets within the command transaction (D67); shared preview hashes remain.
@@ -128,7 +128,7 @@ Commands return `Err` for any input (hostile params included). A fuzz-style test
 
 ## 5. UI shell
 
-- **EXISTS (D15):** `icatalog-ui` is a thin, data-driven native egui desktop shell. Browsing reads the local catalogue (`query_assets`, `thumbnail`, `annotation`, `asset_keywords`); every action (`init`, `import`, `update`, per-asset `edit` of rating/label/keywords, and manual/Smart `collection` actions) is dispatched as an engine command, so CLI and GUI behave identically. Desktop single-keyword Add/Remove uses the exact-name edit options (D64), preserving names containing commas. The shell runs import/update/edit/collection on a single background worker using the same engine dispatcher, reports failures, and draws only visible grid/list rows with visible/selected thumbnail caching (D23). Manual Collections (D25) use the existing v1 tables and `AssetQuery::collection_id`/`collection_ids`; the sidebar creates collections through an egui modal (D26) and selects collections and edits the selected asset's membership through the engine. Grid/list drag-and-drop and right-click collection actions use the same command/worker (D27). Modifier selection (D28) stays in shell state: Shift selects a display-order range, Ctrl/⌘ toggles collections, and the catalogue query returns their combined assets without duplicates. Smart Collections (D35) store typed AND rules in v6; catalogue SQL evaluates membership, counts and mixed unions. The creation modal offers a Smart Collection option and fields; right-clicking a smart row opens Edit Rules… through the same worker. Smart rows cannot receive membership drops or checkboxes. Asset queries still fetch all matching rows. egui/eframe native desktop; no webview. Display decoding uses `icatalog-media::decode_rgba_with_orientation` (D8, D31).
+- **EXISTS (D15):** `icatalog-ui` is a thin, data-driven native egui desktop shell. Browsing reads the local catalogue (`query_assets`, `thumbnail`, `annotation`, `asset_keywords`); every action (`init`, `import`, `update`, per-asset `edit` of rating/label/keywords, and manual/Smart `collection` actions) is dispatched as an engine command, so CLI and GUI behave identically. Desktop single-keyword Add/Remove uses the exact-name edit options (D64), preserving names containing commas. The shell runs import/update/edit/collection on a single background worker using the same engine dispatcher, reports failures, and draws only visible grid/list rows with visible/selected thumbnail caching (D23). Manual Collections (D25) use the existing v1 tables and `AssetQuery::collection_id`/`collection_ids`; the sidebar creates collections through an egui modal (D26) and selects collections and edits the selected asset's membership through the engine. Grid/list drag-and-drop and right-click collection actions use the same command/worker (D27). Modifier selection (D28) stays in shell state: Shift selects a display-order range, Ctrl/⌘ toggles collections, and the catalogue query returns their combined assets without duplicates. Smart Collections (D35/D117) store typed All/Any rule trees in v9; catalogue SQL evaluates membership, counts and mixed unions. The creation modal offers a Smart Collection option and fields; right-clicking a smart row opens Edit Rules… through the same worker. Smart rows cannot receive membership drops or checkboxes. Asset queries still fetch all matching rows. egui/eframe native desktop; no webview. Display decoding uses `icatalog-media::decode_rgba_with_orientation` (D8, D31).
 - **Decided (goal):** wasm browser build via trunk + wasm-bindgen, Rust only, using the same engine and model as desktop (D3).
 - **Open:** the exact data-driven mechanism (e.g. menus generated from the command registry) is not designed.
 
@@ -170,13 +170,13 @@ The shared UI-only `middle_ellipsis::label` component (D51) fits a single line t
 
 The UI-only `formatting::file_size` helper (D52) is shared by List rows and the Details inspector. It formats stored byte counts with binary units and keeps unknown/invalid values explicit. This is display formatting; stored sizes and command output are unchanged.
 
-The UI-only `rating` module (D56) shares five-star display/editing across List, Details and Smart rule forms. List calls its display-only variant inside the existing selectable/draggable row; Details and Create/Edit Rules call its editor with five accessible 24-point star buttons in a labelled Group. The editor returns a changed response and updates only local `Option<i64>` view state: Details maps clearing to rating 0 and dispatches `edit`; Smart rule inputs preserve None versus Some(0) and serialize through existing collection commands/previews. Disabled parent UIs suppress edits. D56 added no engine command, dependency or schema change. D57 adds Maximum Rating to the same shared rule form and existing collection commands. The L1 model validates inclusive optional 0–5 bounds and their ordering, and all live queries/previews share the same predicate. Schema v8 rebuilds the rules table to permit maximum-only rules, preserving existing rules, Collection identities/revisions, membership and replica baseline bytes. Rule rows use 4-point gaps so all ten inputs/actions fit 800×600.
+The UI-only `rating` module (D56) shares five-star display/editing across List, Details and Smart rule forms. List calls its display-only variant inside the existing selectable/draggable row; Details and Create/Edit Rules call its editor with five accessible 24-point star buttons in a labelled Group. The editor returns a changed response and updates only local `Option<i64>` view state: Details maps clearing to rating 0 and dispatches `edit`; Smart rule inputs preserve None versus Some(0) and serialize through existing collection commands/previews. Disabled parent UIs suppress edits. D56 added no engine command, dependency or schema change. D57 adds Maximum Rating to the same shared rule form and existing collection commands. The L1 model validates inclusive optional 0–5 bounds (and their ordering for legacy field input); D117 grouped bounds are independent predicates. All live queries/previews share the same matcher. Schema v8 rebuilds the rules table to permit maximum-only rules, preserving existing rules, Collection identities/revisions, membership and replica baseline bytes. D117 replaces the fixed form with scrollable rule/group rows; Name, preview and actions remain outside the scroll area at 800×600.
 
 The same UI-only formatting module exposes `exposure_time` for Details (D55). It trims decimal seconds to two fractional places, or two significant digits below 0.01 seconds, removing trailing zeros. Nonfinite/nonpositive values show —. It shortens the decimal representation without input-derived indexing, float-to-integer casts or multiplication overflow; stored exposure metadata stays unchanged.
 
 The UI-only `dates::DateFormatter` (D53/D54) is shared by List and Details. It presents numeric regional dates with padded day/month and four-digit years, joined to the system-format time with at. Foundation uses a localized ddMMyyyy template; Windows normalizes native short-date pattern fields; Linux normalizes regional date tokens without changing order/separators. It validates epoch timestamps and ISO local capture values with Chrono, then formats through Foundation on macOS, Windows.Globalization on Windows, or Chrono's regional locale data on Linux (LC_ALL, LC_TIME, LANG precedence; system local zone). Modified is an instant rendered in local time; Captured remains a wall-clock value even in a daylight-saving gap. A 512-entry cache expires after 30 seconds of use so native preferences are re-read. Native failures use an explicit ISO fallback (UTC marked for Modified); invalid input shows —. Test fixtures inject fixed locale/offset settings without process-global changes. No engine, storage or command change.
 
-D20/D44 adds v7 catalogue revision/replica/preview tables without a new crate or dependency. Catalogue triggers track generations and entity revisions; the sync layer owns the bounded binary wire codec and baseline comparisons. Collection UIDs and asset UIDs identify wire state; local row IDs remain local. Preview byte decoding/hashing stays in `icatalog-media`; the engine's shared `previews` module manages embedded/external files and verification, and the `previews` command generates/converts them. Generation uses the imported asset format to select the shared adapter, distinguishing raster TIFF decoding from RAW preview extraction/basic conversion because TIFF signatures alone do not distinguish them. Sync calls that same storage seam to serve/cache referenced previews using GET only. D57 keeps the v2 envelope and legacy records intact, adding Collection kind 3 only for rules with a maximum; new readers still decode kind 2 baselines with no maximum. Older readers reject kind 3 before applying a batch, preserving the client draft. Both server and clients need schema-v8 support to exchange these catalogues. D101 adds a native stored-preview viewer; automatic background sync remains unbuilt. Desktop media commands disable on established replicas; Collection and annotation commands remain editable.
+D20/D44 adds v7 catalogue revision/replica/preview tables without a new crate or dependency. Catalogue triggers track generations and entity revisions; the sync layer owns the bounded binary wire codec and baseline comparisons. Collection UIDs and asset UIDs identify wire state; local row IDs remain local. Preview byte decoding/hashing stays in `icatalog-media`; the engine's shared `previews` module manages embedded/external files and verification, and the `previews` command generates/converts them. Generation uses the imported asset format to select the shared adapter, distinguishing raster TIFF decoding from RAW preview extraction/basic conversion because TIFF signatures alone do not distinguish them. Sync calls that same storage seam to serve/cache referenced previews using GET only. D57 keeps the v2 envelope and legacy records intact, adding Collection kind 3 only for rules with a maximum; new readers still decode kind 2 baselines with no maximum. Older readers reject kind 3 before applying a batch, preserving the client draft. D117 adds grouped Collection kind 4 and schema v9; server and clients must support v9 to exchange current catalogues. D101 adds a native stored-preview viewer; automatic background sync remains unbuilt. Desktop media commands disable on established replicas; Collection and annotation commands remain editable.
 
 ## 6. `ivc` seam and clean-room boundary
 
@@ -331,3 +331,41 @@ A 16-point icon sits at the left before the name for both types;
 fixed icon/count slots leave the name free to truncate. The visible
 `(Smart)` suffix is removed; accessible row names and
 full-name/type tooltips retain the distinction. No model or command change.
+
+
+### Grouped Smart Collection rules (D117)
+
+`SmartExpr` is a typed All/Any/Predicate tree at L1. `SmartRules` retains its flat
+fields as a compatibility representation and exposes a mutually exclusive
+optional expression; conversion canonicalizes representable All groups into
+legacy fields. JSON input/output is bounded and owned by the catalogue layer
+(`serde_json`); engine commands accept `rules-json` instead of flat flags and
+reuse catalogue validation and summaries. The native editor holds only draft
+rows/groups and sends the same command parameters as the CLI.
+
+Schema v9 stores a Smart marker and normalized typed nodes. Trusted SQL evaluates
+leaf predicates and a bounded SQLite aggregate evaluates the group structure;
+preview binds equivalent nodes through a CTE. Membership queries retain fixed
+SQL shape, including unions of up to 32,000 selected Collections. The evaluator
+does not parse JSON or re-enter the database per asset. No stored SQL or
+materialized membership is introduced. Missing/corrupt rule structure is an
+error. Limits are 128 nodes, eight group levels, 64 KiB encoded input and the
+existing 1,024-byte text bound.
+
+Migration preserves identities, revisions and replica baseline bytes. Rule
+replacement is transactional and unchanged saves write nothing. Sync kind 4
+carries grouped expressions; legacy-compatible rules retain kinds 2/3. Grouped
+conflicts expose the whole Rules value independently of Name; persisted legacy
+field choices remain supported only for representable flat rules.
+
+Read-only legacy v6–v8 connections project their old flat rules through a TEMP
+node view, preserving recovery-backup browsing without modifying the file.
+Current v9 catalogues never use that fallback. Conflict previews keep compact
+values; expandable full Rules details expose conditions beyond the preview.
+
+
+Pending `snapshot_ready` recovery defers Context migration until the recorded
+file generation/digest have been verified and the journal finalized. Main-file
+handles remain read-only during that interval, including replacement reopens;
+normal migration resumes after successful recovery. An unreadable companion
+also prevents migration until its state can be inspected safely.

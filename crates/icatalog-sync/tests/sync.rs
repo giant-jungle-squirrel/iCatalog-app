@@ -70,7 +70,16 @@ fn start_server(path: PathBuf) -> u16 {
 fn seed(dir: &Path) -> (PathBuf, String) {
     let p = make_catalogue(dir, "server.sqlite", "test", 0);
     let c = Context::open(&p).unwrap();
-    c.catalog().connection().execute_batch("INSERT INTO asset(id,uid,name,path,format) VALUES (1,'one','One.jpg','/synthetic/One.jpg','JPEG'),(2,'two','Two.jpg','/synthetic/Two.jpg','JPEG'); INSERT INTO collection(id,name) VALUES(1,'Manual'),(2,'Smart'); INSERT INTO smart_collection(collection_id,min_rating) VALUES(2,4);").unwrap();
+    c.catalog().connection().execute_batch("INSERT INTO asset(id,uid,name,path,format) VALUES (1,'one','One.jpg','/synthetic/One.jpg','JPEG'),(2,'two','Two.jpg','/synthetic/Two.jpg','JPEG'); INSERT INTO collection(id,name) VALUES(1,'Manual'),(2,'Smart');").unwrap();
+    c.catalog()
+        .set_smart_rules(
+            2,
+            &icatalog_catalog::SmartRules {
+                min_rating: Some(4),
+                ..Default::default()
+            },
+        )
+        .unwrap();
     drop(c);
     let url = format!("http://127.0.0.1:{}", start_server(p.clone()));
     (p, url)
@@ -506,6 +515,268 @@ fn multiple_format_rules_round_trip_between_replicas() {
     let nas = Context::open(server).unwrap();
     assert_eq!(nas.catalog().smart_rules(2).unwrap(), Some(rules));
     assert_eq!(nas.catalog().collection_assets(2).unwrap(), vec![1, 2]);
+}
+
+#[test]
+fn grouped_rules_round_trip_and_conflict_choices_survive_restart() {
+    let dir = temp_dir("grouped-rules");
+    let (server, url) = seed(&dir);
+    let mut nas = Context::open(&server).unwrap();
+    nas.catalog()
+        .connection()
+        .execute("UPDATE asset SET format='PTG' WHERE id=1", [])
+        .unwrap();
+    command(
+        &mut nas,
+        "edit",
+        &[("id", "2"), ("keyword-exact", "painting")],
+    );
+    drop(nas);
+    let mut a = replica(&server, "group-a.sqlite", &url);
+    let mut b = replica(&server, "group-b.sqlite", &url);
+    let painting = r#"{"any":[{"field":"format","value":"PTG, REB, CLIP"},{"field":"keyword","value":"painting"}]}"#;
+    let highly_rated = format!(r#"{{"all":[{painting},{{"field":"min-rating","value":4}}]}}"#);
+    command(
+        &mut a,
+        "collection",
+        &[
+            ("action", "set-rules"),
+            ("id", "2"),
+            ("rules-json", painting),
+        ],
+    );
+    assert_eq!(a.catalog().collection_assets(2).unwrap(), vec![1, 2]);
+    assert!(sync(&mut a, &url).conflicts.is_empty());
+    assert!(sync(&mut b, &url).conflicts.is_empty());
+    let expected = icatalog_catalog::SmartRules::from_json(painting).unwrap();
+    assert_eq!(b.catalog().smart_rules(2).unwrap(), Some(expected.clone()));
+    assert_eq!(b.catalog().collection_assets(2).unwrap(), vec![1, 2]);
+    assert!(matches!(sync(&mut b, &url).action, SyncAction::UpToDate));
+
+    command(
+        &mut a,
+        "collection",
+        &[
+            ("action", "set-rules"),
+            ("id", "2"),
+            ("name", "Server paintings"),
+            ("rules-json", &highly_rated),
+        ],
+    );
+    let drawing =
+        r#"{"any":[{"field":"keyword","value":"painting"},{"field":"keyword","value":"drawing"}]}"#;
+    command(
+        &mut b,
+        "collection",
+        &[
+            ("action", "set-rules"),
+            ("id", "2"),
+            ("name", "My paintings"),
+            ("rules-json", drawing),
+        ],
+    );
+    assert!(sync(&mut a, &url).conflicts.is_empty());
+    let report = sync(&mut b, &url);
+    assert_eq!(report.conflicts.len(), 1);
+    let key = report.conflicts.first().unwrap();
+    let listed = sync_command(&mut b, "sync-resolve", &[("action", "list")]);
+    let icatalog_engine::Outcome::Sync(icatalog_engine::SyncOutcome::Resolve(listed)) = listed
+    else {
+        panic!("expected grouped conflict")
+    };
+    let conflict = listed.conflicts.first().unwrap();
+    assert_eq!(
+        conflict
+            .fields
+            .iter()
+            .map(|f| f.field.as_str())
+            .collect::<Vec<_>>(),
+        vec!["name", "rules"]
+    );
+    let rules_field = conflict.fields.iter().find(|f| f.field == "rules").unwrap();
+    assert!(
+        matches!(&rules_field.local, icatalog_engine::SyncValue::Rules(rules) if rules.summary.contains("OR"))
+    );
+    assert!(
+        matches!(&rules_field.server, icatalog_engine::SyncValue::Rules(rules) if rules.summary.contains("AND") && rules.summary.contains("OR"))
+    );
+    let session = listed.session_id.clone();
+    let backup = Context::open_existing(report.backup.unwrap()).unwrap();
+    assert_eq!(
+        backup.catalog().smart_rules(2).unwrap(),
+        Some(icatalog_catalog::SmartRules::from_json(drawing).unwrap())
+    );
+    sync_command(
+        &mut b,
+        "sync-resolve",
+        &[
+            ("action", "choose"),
+            ("key", key),
+            ("field", "name"),
+            ("choice", "server"),
+        ],
+    );
+    sync_command(
+        &mut b,
+        "sync-resolve",
+        &[
+            ("action", "choose"),
+            ("key", key),
+            ("field", "rules"),
+            ("choice", "local"),
+        ],
+    );
+    let path = b.path().to_owned();
+    drop(b);
+    let mut b = Context::open_existing(path).unwrap();
+    let reopened = sync_command(&mut b, "sync-resolve", &[("action", "list")]);
+    assert!(
+        matches!(reopened, icatalog_engine::Outcome::Sync(icatalog_engine::SyncOutcome::Resolve(ref result)) if result.session_id == session && result.all_choices_made)
+    );
+    let applied = sync_command(
+        &mut b,
+        "sync-resolve",
+        &[("action", "apply"), ("url", &url)],
+    );
+    assert!(
+        matches!(applied, icatalog_engine::Outcome::Sync(icatalog_engine::SyncOutcome::Resolve(ref result)) if result.applied)
+    );
+    assert_eq!(
+        b.catalog().collection(2).unwrap().unwrap().name,
+        "Server paintings"
+    );
+    assert_eq!(
+        b.catalog().smart_rules(2).unwrap(),
+        Some(icatalog_catalog::SmartRules::from_json(drawing).unwrap())
+    );
+    assert_eq!(b.catalog().collection_assets(2).unwrap(), vec![2]);
+    assert!(sync(&mut a, &url).conflicts.is_empty());
+    assert_eq!(
+        a.catalog().smart_rules(2).unwrap(),
+        b.catalog().smart_rules(2).unwrap()
+    );
+}
+
+#[test]
+fn old_server_rejection_preserves_grouped_drafts_and_baseline() {
+    struct OldServer;
+    impl Transport for OldServer {
+        fn get(&self, url: &str) -> icatalog_sync::Result<HttpResponse> {
+            UreqTransport::new().get(url)
+        }
+        fn post(&self, _: &str, body: &[u8]) -> icatalog_sync::Result<HttpResponse> {
+            // This fixture stands in for an older decoder that rejects kind 4
+            // before attempting the complete batch, including annotation edits.
+            let (_, changes) = icatalog_sync::delta::decode(body).unwrap();
+            assert!(changes.iter().any(|change| matches!(&change.value, icatalog_sync::delta::Value::Collection(collection) if collection.rules.as_ref().is_some_and(|r| r.legacy_rules().is_none()))));
+            Ok(HttpResponse {
+                status: 400,
+                headers: Default::default(),
+                body: b"unsupported collection kind; update server".to_vec(),
+            })
+        }
+    }
+    let dir = temp_dir("grouped-old-server");
+    let (server, url) = seed(&dir);
+    let mut local = replica(&server, "grouped-local.sqlite", &url);
+    command(&mut local, "edit", &[("id", "1"), ("rating", "5")]);
+    command(
+        &mut local,
+        "collection",
+        &[
+            ("action", "set-rules"),
+            ("id", "2"),
+            (
+                "rules-json",
+                r#"{"any":[{"field":"format","value":"PTG"},{"field":"keyword","value":"painting"}]}"#,
+            ),
+        ],
+    );
+    let before = std::fs::read(local.path()).unwrap();
+    let server_before = std::fs::read(&server).unwrap();
+    assert!(client::sync_once(&mut local, &OldServer, &url).is_err());
+    assert_eq!(std::fs::read(local.path()).unwrap(), before);
+    assert_eq!(std::fs::read(&server).unwrap(), server_before);
+    assert_eq!(local.catalog().annotation(1).unwrap().unwrap().rating, 5);
+    assert!(local
+        .catalog()
+        .smart_rules(2)
+        .unwrap()
+        .unwrap()
+        .legacy_rules()
+        .is_none());
+}
+
+#[test]
+fn legacy_rule_field_choices_remain_applicable_after_reopening() {
+    let dir = temp_dir("legacy-rules-recovery");
+    let (server, url) = seed(&dir);
+    let mut a = replica(&server, "legacy-a.sqlite", &url);
+    let mut b = replica(&server, "legacy-b.sqlite", &url);
+    command(
+        &mut a,
+        "collection",
+        &[
+            ("action", "set-rules"),
+            ("id", "2"),
+            ("min-rating", "0"),
+            ("max-rating", "2"),
+        ],
+    );
+    command(
+        &mut b,
+        "collection",
+        &[
+            ("action", "set-rules"),
+            ("id", "2"),
+            ("min-rating", "3"),
+            ("max-rating", "4"),
+        ],
+    );
+    sync(&mut a, &url);
+    let report = sync(&mut b, &url);
+    let key = report.conflicts.first().unwrap();
+    for field in ["min_rating", "max_rating"] {
+        sync_command(
+            &mut b,
+            "sync-resolve",
+            &[
+                ("action", "choose"),
+                ("key", key),
+                ("field", field),
+                ("choice", "local"),
+            ],
+        );
+    }
+    // The journal retains the old kind-3 wire representation and field names;
+    // no record or choice migration is required to resume an older session.
+    let companion = rusqlite::Connection::open(b.sync_state_path().unwrap()).unwrap();
+    let record: Vec<u8> = companion
+        .query_row(
+            "SELECT local_record FROM sync_conflict WHERE key=?1",
+            [key],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(record.get(18), Some(&3)); // ICAD2 + u32 + "test" + u32.
+    drop(companion);
+    let path = b.path().to_owned();
+    drop(b);
+    let mut b = Context::open_existing(path).unwrap();
+    let listed = sync_command(&mut b, "sync-resolve", &[("action", "list")]);
+    assert!(
+        matches!(listed, icatalog_engine::Outcome::Sync(icatalog_engine::SyncOutcome::Resolve(ref result)) if result.all_choices_made && result.conflicts[0].fields.len() == 2)
+    );
+    let applied = sync_command(
+        &mut b,
+        "sync-resolve",
+        &[("action", "apply"), ("url", &url)],
+    );
+    assert!(
+        matches!(applied, icatalog_engine::Outcome::Sync(icatalog_engine::SyncOutcome::Resolve(ref result)) if result.applied)
+    );
+    let rules = b.catalog().smart_rules(2).unwrap().unwrap();
+    assert_eq!((rules.min_rating, rules.max_rating), (Some(3), Some(4)));
 }
 
 #[test]

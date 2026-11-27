@@ -586,6 +586,6 @@ mod tests {
         assert_eq!(s.keywords, 1);
         assert_eq!(s.thumbnails, 1);
         assert_eq!(s.generation, c.generation().unwrap());
-        assert_eq!(s.schema_version, 8);
+        assert_eq!(s.schema_version, 9);
     }
 }

@@ -1,6 +1,6 @@
 # iCatalog SQLite schema
 
-Purpose: catalogue schema and migrations. Status vocabulary: **Decided** (owner decision or golden rule), **Proposed** (designed here), **Open** (unresolved). Migrations v1 through v8 are **implemented** in `crates/icatalog-catalog` (EXISTS, tested); the Rust model and CRUD cover every table below.
+Purpose: catalogue schema and migrations. Status vocabulary: **Decided** (owner decision or golden rule), **Proposed** (designed here), **Open** (unresolved). Migrations v1 through v9 are **implemented** in `crates/icatalog-catalog` (EXISTS, tested); the Rust model and CRUD cover every table below.
 
 ## 1. Basis
 
@@ -17,7 +17,7 @@ filename or SQLite header alone is not a catalogue identity check.
 
 - Versioned, **forward-only**, each migration in a single transaction.
 - A `schema_migrations` table records applied versions; it is created in code (not in a migration file) before migrations run.
-- Migrations: `v1.sql` (catalogue, folder, asset, thumbnail, metadata_raw, asset_meta, collection, collection_asset) `v2.sql` (keyword, asset_keyword, annotation, `find` indexes), `v3.sql` (`asset.missing` + index, D14), `v4.sql` (`source`, `folder.source_id`/`folder.path`, D21), `v5.sql` (`source.device_id`/`device_label`, D21), `v6.sql` (`smart_collection` typed rules and membership guards, D35), `v7.sql` (stable Collection UIDs, transactional revisions/generations, replica baseline and previews, D20/D44), and `v8.sql` (inclusive maximum rating and ordered rating bounds, D57). `foreign_keys` is ON for every connection.
+- Migrations: `v1.sql` (catalogue, folder, asset, thumbnail, metadata_raw, asset_meta, collection, collection_asset) `v2.sql` (keyword, asset_keyword, annotation, `find` indexes), `v3.sql` (`asset.missing` + index, D14), `v4.sql` (`source`, `folder.source_id`/`folder.path`, D21), `v5.sql` (`source.device_id`/`device_label`, D21), `v6.sql` (`smart_collection` typed rules and membership guards, D35), `v7.sql` (stable Collection UIDs, transactional revisions/generations, replica baseline and previews, D20/D44), `v8.sql` (inclusive maximum rating and ordered rating bounds, D57), and `v9.sql` (grouped All/Any rules, D117). `foreign_keys` is ON for every connection.
 - A catalogue with a newer schema version than the app knows is refused with an actionable error before migrations write.
 - Every migration has a round-trip test on synthetic data; a never-panic test feeds corrupt or truncated files.
 - Back up before migrating a user catalogue (**Open**: exact mechanism).
@@ -36,7 +36,7 @@ An identical save therefore does not advance catalogue generation or a
 Collection's sync revision. Null-to-value and value-to-null rule changes still
 write and use the existing triggers.
 
-## 3. DDL (v1-v6, implemented; later columns are marked inline)
+## 3. DDL (implemented; migration versions are marked inline)
 
 ```sql
 -- catalogue-level metadata (single row)
@@ -144,21 +144,20 @@ CREATE TABLE collection_asset (
   PRIMARY KEY (collection_id, asset_id)
 );
 
--- v6 introduced Smart Collections; this is the v8 rules table (D57).
--- Presence marks a Smart Collection; NULL fields add no restriction.
+-- v9 (D117): presence marks a Smart Collection; nodes store its rule tree.
 CREATE TABLE smart_collection (
-  collection_id INTEGER PRIMARY KEY REFERENCES collection(id) ON DELETE CASCADE,
-  format TEXT, captured_from TEXT, captured_to TEXT,
-  camera TEXT, lens TEXT,
-  min_rating INTEGER CHECK (min_rating BETWEEN 0 AND 5),
-  max_rating INTEGER CHECK (max_rating IS NULL OR
-    (typeof(max_rating)='integer' AND max_rating BETWEEN 0 AND 5)),
-  label INTEGER CHECK (label BETWEEN 0 AND 7),
-  keyword TEXT, text TEXT,
-  CHECK (format IS NOT NULL OR captured_from IS NOT NULL OR captured_to IS NOT NULL
-         OR camera IS NOT NULL OR lens IS NOT NULL OR min_rating IS NOT NULL
-         OR max_rating IS NOT NULL OR label IS NOT NULL OR keyword IS NOT NULL OR text IS NOT NULL),
-  CHECK (min_rating IS NULL OR max_rating IS NULL OR min_rating <= max_rating)
+  collection_id INTEGER PRIMARY KEY REFERENCES collection(id) ON DELETE CASCADE
+);
+CREATE TABLE smart_rule_node (
+  collection_id INTEGER NOT NULL REFERENCES smart_collection(collection_id) ON DELETE CASCADE,
+  ordinal INTEGER NOT NULL, -- 0..127; stable preorder within each tree
+  parent INTEGER,           -- NULL at root; otherwise a smaller ordinal
+  kind INTEGER NOT NULL,    -- 0 = All, 1 = Any, 2 = predicate
+  field TEXT,               -- existing hyphenated CLI field name, for predicates
+  text_value TEXT,          -- string predicate value, at most 1024 bytes
+  int_value INTEGER,        -- rating 0..5 or label 0..7
+  PRIMARY KEY(collection_id, ordinal)
+  -- v9.sql enforces root/kind/typed-value/parent constraints with CHECKs.
 );
 -- Triggers reject manual membership insert/update for smart collections and
 -- adding rules to collections that already hold manual members.
@@ -195,9 +194,9 @@ CREATE INDEX idx_annotation_label ON annotation(label);
 
 `AssetQuery` and `find` treat an absent annotation row as rating 0 and label 0. A minimum rating of 0 includes every asset; an exact label of 0 includes both explicitly unlabelled assets and assets without annotations. Smart Collection rules use the same zero defaults.
 
-### v8 additions (D57, implemented)
+### v8 additions (D57, retained through v9)
 
-`smart_collection.max_rating` is optional and inclusive. The at-least-one-rule constraint includes it, allowing maximum-only rules; a cross-field constraint rejects inverted bounds. Because SQLite cannot replace those table constraints in place, v8 rebuilds the rules table inside the migration transaction, copies every existing rule with NULL maximum, and recreates its membership/revision/generation triggers. Collection UIDs, revisions, manual membership and replica baseline bytes remain unchanged. The schema update advances catalogue generation once. Failed migration rolls back the entire rebuild and can be retried; reopening an upgraded catalogue is idempotent.
+In v8, `smart_collection.max_rating` is optional and inclusive; v9 retains this predicate as a typed node. The at-least-one-rule constraint includes it, allowing maximum-only rules; a cross-field constraint rejects inverted bounds. Because SQLite cannot replace those table constraints in place, v8 rebuilds the rules table inside the migration transaction, copies every existing rule with NULL maximum, and recreates its membership/revision/generation triggers. Collection UIDs, revisions, manual membership and replica baseline bytes remain unchanged. The schema update advances catalogue generation once. Failed migration rolls back the entire rebuild and can be retried; reopening an upgraded catalogue is idempotent.
 
 ### v7 additions (D20/D44, implemented)
 
@@ -258,11 +257,24 @@ Notes (**Proposed**, per D8):
 
 User-annotation tables (D11) and `find` indexes are done (migration v2). Still **Open**: where unknown chunks go.
 
-Manual Collections (D25) use the existing v1 tables without a migration. Collection ids identify albums; display names may repeat. Membership is many-to-many, adding/removing a member is idempotent, and removing membership preserves the asset and its source/folder. `AssetQuery::collection_id` composes with other filters and paging. `collection_ids` (D28) matches membership in any listed collection using EXISTS, so overlapping albums produce no duplicate assets before paging. An empty list matches nothing; an absent list adds no restriction. Both fields, when set, are ANDed, as with all other filters. To bound query allocations and SQLite parameters, the list accepts at most 32,000 ids; larger lists return an InvalidQuery error. This is a query API change without a migration. `all_collections` orders by name then id; `asset_collection_ids` returns membership for a selected asset. Smart Collection rules are stored in v6 (D35); the same queries evaluate them live, including counts and mixed collection unions.
+Manual Collections (D25) use the existing v1 tables without a migration. Collection ids identify albums; display names may repeat. Membership is many-to-many, adding/removing a member is idempotent, and removing membership preserves the asset and its source/folder. `AssetQuery::collection_id` composes with other filters and paging. `collection_ids` (D28) matches membership in any listed collection using EXISTS, so overlapping albums produce no duplicate assets before paging. An empty list matches nothing; an absent list adds no restriction. Both fields, when set, are ANDed, as with all other filters. To bound query allocations and SQLite parameters, the list accepts at most 32,000 ids; larger lists return an InvalidQuery error. This is a query API change without a migration. `all_collections` orders by name then id; `asset_collection_ids` returns membership for a selected asset. Smart Collection rules originated in v6 (D35) and use grouped nodes in v9 (D117); the same queries evaluate them live, including counts and mixed collection unions.
 
-`SmartRules` is a bounded, typed AND predicate, not stored SQL or a recursive query tree. A collection with no `smart_collection` row is manual. Rules support ASCII-case-insensitive format alternatives (D109: commas, semicolons or spaces; optional leading dots; JPG/JPE → JPEG and TIF → TIFF), inclusive local capture dates, camera make/model or lens substring, inclusive minimum/maximum rating, exact label, exact keyword and filename/path substring. Missing metadata cannot satisfy its rule; missing annotations have rating/label zero. Real calendar dates and ordered ranges are validated in Rust, with 1024-byte/control-character limits on rule text. `Collection.rules`, membership reads, counts and `AssetQuery` all use live SQL results; no membership is materialized. Either rating bound may stand alone; 0 includes unrated assets and equal bounds select an exact rating. Bounds must be integers in 0–5 and minimum cannot exceed maximum. Smart create/rule-replacement uses the engine transaction, preserving the previous rules on failure. The v6 migration preserves existing asset identities/manual membership and updates the catalogue's schema version; D20/D44 revisions and preview storage are implemented in v7.
+`SmartRules` supports bounded typed All/Any expressions (D117), with existing flat fields retained as an alternative compatibility representation. `SmartExpr` groups contain child expressions; `SmartPredicate` covers the existing fields. Repeated fields are allowed. A collection with no `smart_collection` row is manual. Rules retain ASCII-case-insensitive format alternatives (D109: comma/semicolon/space separators, optional leading dots, JPG/JPE → JPEG and TIF → TIFF), inclusive local capture dates, case-insensitive camera/lens and filename/path substrings, inclusive rating bounds, exact label and exact keyword. Missing metadata cannot satisfy its predicate; missing annotations have rating/label zero.
 
-`Catalog::count_smart_matches` (D37) validates unsaved `SmartRules` and binds them as one CTE row, reusing the saved membership predicate for a single COUNT(*) query. It allocates no asset result set and writes no collection or rule rows. Preview counts have the same missing-data, rating/label-zero and AND semantics as saved collections. No migration.
+Expressions require a nonempty group root and are bounded to 128 total nodes, eight group levels, 64 KiB encoded input, and 1024 UTF-8 bytes per string without control characters. Rust validates dates, numeric types/ranges, and structure. Legacy field input still checks ordered ranges; grouped bounds are independent predicates, allowing alternatives such as rating ≥ 4 OR rating ≤ 2. Grouped expressions that exactly fit valid legacy fields canonicalize into that representation. No raw SQL or membership is stored.
+
+Trusted SQL evaluates node predicates against an asset; the catalogue-owned `icatalog_smart_match` aggregate validates and evaluates their All/Any structure. Empty, disconnected, cyclic or otherwise malformed stored trees return an error. Saved membership, collection counts, mixed unions and filtered queries share this matcher. The fixed SQL shape preserves bounded parameter use for up to 32,000 selected collection IDs. `Catalog::count_smart_matches` validates the draft and binds its nodes as a VALUES CTE using the same matcher, writing no catalogue rows or asset result set.
+
+Schema v9 migrates each old rule row into an All root with a leaf for every populated field. Format lists remain one predicate. Migration copies without firing edit-tracking triggers, preserves Collection IDs/UIDs/revisions, manual memberships and baseline bytes, and advances generation through the schema-version update. Failure rolls back the migration; reopen is idempotent. Node changes track revision/generation, while identical complete-rule saves write nothing. Rule replacement and optional rename remain one engine transaction.
+
+Read-only v6–v8 catalogues (including recovery backups) use a connection-local TEMP view projecting the old flat columns into equivalent node rows. Their on-disk bytes, schema and revisions remain unchanged. The adapter is enabled only for recorded legacy versions; missing rule tables in v9 are corruption, not a reason to fall back.
+
+Pending `snapshot_ready` recovery defers Context migration until the recorded
+file generation/digest have been verified and the journal finalized. Main-file
+handles remain read-only during that interval, including replacement reopens;
+normal migration resumes after successful recovery. An unreadable companion
+also prevents migration until its state can be inspected safely.
+
 
 `AssetQuery::folder_recursive` (D43) optionally includes all descendants of `folder_id` using `folder.parent_id`. The recursive SQL CTE deduplicates folder ids with `UNION`, so cyclic links terminate and assets appear once. Filtering happens before paging and composes with other predicates; names, path prefixes and UI expansion state do not determine membership. The default remains exact-folder matching. Unassigned (`folder_id_null = Some(true)`) takes precedence; recursion without a folder id has no effect. The desktop enables recursion for folder browsing. No migration or catalogue write.
 
@@ -294,4 +306,4 @@ and verified stored blob; absent/older/mismatched markers cause regeneration.
 `thumbnail.source` keeps existing values: `raw_preview` for embedded RAW images,
 `psd_resource` for Photoshop thumbnail resources and `rendered` for other paths.
 True source pixel dimensions remain nullable; PDF points/preview dimensions do not
-replace unknown canvas dimensions. Schema v8 and protocol v2 are unchanged.
+replace unknown canvas dimensions. This media preparation adds no schema or protocol change.

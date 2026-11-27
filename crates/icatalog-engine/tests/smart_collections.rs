@@ -228,7 +228,7 @@ fn smart_name_and_rules_save_atomically_and_keep_the_name_when_omitted() {
     )
     .is_err());
     for trigger in [
-        "CREATE TRIGGER reject_edit BEFORE UPDATE ON smart_collection BEGIN SELECT RAISE(ABORT,'synthetic rules failure'); END;",
+        "CREATE TRIGGER reject_edit BEFORE INSERT ON smart_rule_node BEGIN SELECT RAISE(ABORT,'synthetic rules failure'); END;",
         "CREATE TRIGGER reject_edit AFTER UPDATE OF name ON collection BEGIN SELECT RAISE(ABORT,'synthetic name failure'); END;",
     ] {
         c.catalog().connection().execute_batch(trigger).unwrap();

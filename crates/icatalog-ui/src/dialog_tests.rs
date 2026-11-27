@@ -66,6 +66,7 @@ fn header_x_discards_collection_drafts_without_saving_and_allows_reopening() {
                     settle(&mut h);
                 }
                 if matches!(kind, "create-smart" | "rules") {
+                    ensure_smart_rule(&mut h, "Format");
                     h.get_by_label("Format").click();
                     h.run_steps(2);
                     h.get_by_label("Format").type_text("PNG");
