@@ -21,6 +21,7 @@ mod icon_button;
 mod interaction;
 mod list_row;
 mod middle_ellipsis;
+mod navigation;
 mod pickers;
 mod preview;
 mod rating;
@@ -2360,51 +2361,6 @@ impl App {
         }
         edit
     }
-}
-
-/// A disclosure arrow button for a collapsible section or folder row.
-///
-/// The triangle is painted rather than drawn from a text glyph: egui's bundled
-/// proportional fonts cover the right-pointing triangle (`▶`) but not the
-/// down-pointing one (`▼`), so a text arrow left a missing-character box on
-/// screen whenever the section was open. Painting keeps both states the same
-/// size and weight.
-fn disclosure_arrow(ui: &mut egui::Ui, open: bool, name: &str) -> egui::Response {
-    let response = ui.add(
-        egui::Button::new("")
-            .small()
-            .min_size(egui::vec2(18.0, ui.spacing().interact_size.y)),
-    );
-    response.widget_info(|| {
-        egui::WidgetInfo::labeled(
-            egui::Role::Button,
-            ui.is_enabled(),
-            format!("{} {name}", if open { "Collapse" } else { "Expand" }),
-        )
-    });
-    let icon_rect = egui::Rect::from_center_size(
-        response.rect.center(),
-        egui::Vec2::splat(ui.spacing().icon_width_inner),
-    );
-    let icon_response = response.clone().with_new_rect(icon_rect);
-    egui::collapsing_header::paint_default_icon(ui, if open { 1.0 } else { 0.0 }, &icon_response);
-    response
-}
-
-/// Fill the remaining sidebar width while keeping the name left aligned.
-fn folder_row<'a>(
-    ui: &mut egui::Ui,
-    selected: bool,
-    name: impl Into<egui::Atom<'a>>,
-) -> egui::Response {
-    ui.add(
-        egui::Button::selectable(selected, (name.into(), egui::Atom::grow()))
-            .min_size(egui::vec2(
-                ui.available_width(),
-                ui.spacing().interact_size.y,
-            ))
-            .truncate(),
-    )
 }
 
 /// A single clickable row, with fixed count space and a shrinking name.

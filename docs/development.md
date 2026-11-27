@@ -444,3 +444,10 @@ style: charcoal or silver panels, recessed inputs, neutral thumbnail selection
 and Grid/List icons with visible labels. Existing 15 pt interface text and native
 DPI scaling remain. Headless checks include palette contrast and keyboard view
 switching; screenshots cover dark/light, narrow/Retina and floating panels.
+
+Folder-tree styling (D114): device/folder rows use unboxed chevrons and monochrome
+icons; expanded branches show an open folder. Click a chevron to expand/collapse,
+or a folder icon/name/right edge to select its subtree. Focused chevrons also
+respond to Enter/Space without changing selection. Selecting a collapsed device
+reopens it. Branch and leaf labels align at each level; long names retain full-name
+hover text. Checks cover both themes at 1×/1.5×/2× and reviewed folder screenshots.

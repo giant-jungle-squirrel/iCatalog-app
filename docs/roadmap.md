@@ -161,3 +161,7 @@ and named presets remain outside scope.
 D113 styles that workspace with PhotoCraft/LightCraft-inspired charcoal/silver
 surfaces, recessed inputs, neutral thumbnail cards/selection and accessible
 Grid/List icon controls. Fonts, command paths and the Craft pin remain unchanged.
+
+D114 extends the desktop styling to the Folders hierarchy: unboxed disclosure
+chevrons, original monochrome icons and aligned branch/leaf indentation, retaining
+separate expansion/selection targets and keyboard controls.

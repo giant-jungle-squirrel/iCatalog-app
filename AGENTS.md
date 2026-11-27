@@ -154,7 +154,7 @@ Asset selections support ranges, toggles and rectangle selection with wheel scro
 
 Collections fill their own independently resizable dock panel below New Collection (D112, superseding D49). The standalone asset-total footer and separator are removed; long lists scroll and each Collection retains its own member count.
 
-Folders navigation fills the available sidebar width (D42): All and Unassigned span the content area; device headers and folder names extend to its right edge while retaining disclosure arrows and tree indentation. Long names truncate with full-name hover text.
+Folders navigation fills the available sidebar width (D42): All and Unassigned span the content area; device headers and folder names extend to its right edge while retaining disclosure arrows and tree indentation. Long names truncate with full-name hover text. D114 uses unboxed Craft icon-button chevrons and original monochrome folder/device/library icons; branches and leaves share a disclosure column, with 14-point nesting. Arrows retain separate pointer/keyboard targets and expose expanded state to accessibility.
 
 Long device/folder trees scroll inside the Folders dock panel below fixed All and Unassigned controls (D112, superseding D62’s shared-sidebar 45% cap). Collections has a separate scrollable dock panel.
 

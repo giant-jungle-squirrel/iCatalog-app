@@ -23,10 +23,26 @@ impl App {
     fn folders_panel(&mut self, ui: &mut egui::Ui) {
         // folder tree
         let mut sel = self.folder_sel.clone();
-        if folder_row(ui, matches!(sel, FolderSelection::All), "All").clicked() {
+        if navigation::row(
+            ui,
+            matches!(sel, FolderSelection::All),
+            "All",
+            navigation::Icon::Library,
+            false,
+        )
+        .clicked()
+        {
             sel = FolderSelection::All;
         }
-        if folder_row(ui, matches!(sel, FolderSelection::Unassigned), "Unassigned").clicked() {
+        if navigation::row(
+            ui,
+            matches!(sel, FolderSelection::Unassigned),
+            "Unassigned",
+            navigation::Icon::Unassigned,
+            false,
+        )
+        .clicked()
+        {
             sel = FolderSelection::Unassigned;
         }
         fn folder_device(
@@ -78,12 +94,13 @@ impl App {
                         ui.add_space(6.0);
                         let key = did.clone().unwrap_or_else(|| "Other".to_string());
                         ui.horizontal(|ui| {
+                            ui.spacing_mut().item_spacing.x = 2.0;
                             if did.is_some() {
                                 // Accordion: the arrow collapses the
                                 // device; its name selects every source
                                 // on that device.
                                 let open = !state.collapsed_devices.contains(&key);
-                                if disclosure_arrow(ui, open, &dev).clicked() {
+                                if navigation::disclosure(ui, open, &dev).clicked() {
                                     if open {
                                         state.collapsed_devices.insert(key.clone());
                                     } else {
@@ -94,15 +111,24 @@ impl App {
                                     state.selected,
                                     FolderSelection::Device(d) if *d == key
                                 );
-                                if folder_row(ui, is_sel, egui::RichText::new(&dev).strong())
-                                    .on_hover_text(&dev)
+                                if navigation::row(ui, is_sel, &dev, navigation::Icon::Device, true)
                                     .clicked()
                                 {
                                     state.collapsed_devices.remove(&key);
                                     *state.selected = FolderSelection::Device(key.clone());
                                 }
                             } else {
-                                ui.add_space(16.0);
+                                navigation::disclosure_space(ui);
+                                let (rect, _) = ui.allocate_exact_size(
+                                    egui::vec2(16.0, 24.0),
+                                    egui::Sense::hover(),
+                                );
+                                navigation::paint_icon(
+                                    ui,
+                                    rect,
+                                    navigation::Icon::Device,
+                                    ui.visuals().weak_text_color(),
+                                );
                                 ui.label(egui::RichText::new(&dev).strong());
                             }
                         });
@@ -114,11 +140,12 @@ impl App {
                     }
                 }
                 ui.horizontal(|ui| {
-                    ui.add_space(8.0 + depth as f32 * 12.0);
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    ui.add_space(navigation::INDENT * (depth + 1) as f32);
                     let has_children = folders.iter().any(|x| x.parent_id == Some(f.id));
                     if has_children {
                         let exp = state.expanded.contains(&f.id);
-                        if disclosure_arrow(ui, exp, &f.name).clicked() {
+                        if navigation::disclosure(ui, exp, &f.name).clicked() {
                             if exp {
                                 state.expanded.remove(&f.id);
                             } else {
@@ -126,13 +153,20 @@ impl App {
                             }
                         }
                     } else {
-                        ui.add_space(16.0);
+                        navigation::disclosure_space(ui);
                     }
                     let is_sel =
                         matches!(state.selected, FolderSelection::Folder(id) if *id == f.id);
-                    if folder_row(ui, is_sel, f.name.as_str())
-                        .on_hover_text(&f.name)
-                        .clicked()
+                    if navigation::row(
+                        ui,
+                        is_sel,
+                        &f.name,
+                        navigation::Icon::Folder {
+                            open: has_children && state.expanded.contains(&f.id),
+                        },
+                        false,
+                    )
+                    .clicked()
                     {
                         *state.selected = FolderSelection::Folder(f.id);
                     }

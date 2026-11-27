@@ -548,9 +548,12 @@ fn recursive_folder_browsing_includes_collapsed_descendants_and_scopes_search_an
         let toggle_arrow = |h: &mut Harness<'_, App>, label: &str| {
             h.get_by_label(label).scroll_to_me();
             settle(h);
-            let rect = h.get_by_label(label).rect();
-            let gap = h.ctx.style_of(egui::Theme::Dark).spacing.item_spacing.x;
-            click_position(h, egui::pos2(rect.left() - gap - 9.0, rect.center().y));
+            let expand = format!("Expand {label}");
+            let collapse = format!("Collapse {label}");
+            let arrow = h
+                .query_by_label(&expand)
+                .unwrap_or_else(|| h.get_by_label(&collapse));
+            arrow.click();
             settle(h);
         };
         h.get_by_label("Photos").scroll_to_me();
@@ -654,6 +657,71 @@ fn recursive_folder_browsing_includes_collapsed_descendants_and_scopes_search_an
 }
 
 #[test]
+fn folder_tree_icons_and_chevrons_preserve_keyboard_and_pointer_targets() {
+    let fixture = Fixture::new();
+    seed_folder_tree(&fixture, "Demo device");
+    let ctx = open_catalogue(&fixture.path()).unwrap();
+    ctx.catalog()
+        .connection()
+        .execute(
+            "INSERT INTO folder(id,source_id,name) VALUES(3,1,'Sibling leaf')",
+            [],
+        )
+        .unwrap();
+    for theme in [egui::Theme::Dark, egui::Theme::Light] {
+        for scale in [1.0, 1.5, 2.0] {
+            let mut h = fixture.harness_with_display([1100.0, 720.0], scale, theme);
+            let branch = h.get_by_label("Photos").rect();
+            let leaf = h.get_by_label("Sibling leaf").rect();
+            assert_eq!(branch.left(), leaf.left(), "branches and leaves align");
+            assert_eq!(branch.right(), leaf.right());
+            let arrow = h.get_by_label("Expand Photos").rect();
+            assert!(arrow.right() < branch.left());
+            assert_eq!(arrow.height(), branch.height());
+            assert!(h.query_by_label("Expand Sibling leaf").is_none());
+
+            // The painted folder icon is part of the selection target.
+            click_position(&mut h, egui::pos2(branch.left() + 12.0, branch.center().y));
+            assert_eq!(h.state().folder_sel, FolderSelection::Folder(1));
+            let ids = h.state().assets.iter().map(|a| a.id).collect::<Vec<_>>();
+            for (label, key, open) in [
+                ("Expand Photos", egui::Key::Enter, true),
+                ("Collapse Photos", egui::Key::Space, false),
+            ] {
+                h.get_by_label(label).focus();
+                h.run_steps(2);
+                h.key_press(key);
+                settle(&mut h);
+                assert_eq!(h.state().expanded.contains(&1), open);
+                assert_eq!(h.state().folder_sel, FolderSelection::Folder(1));
+                assert_eq!(
+                    h.state().assets.iter().map(|a| a.id).collect::<Vec<_>>(),
+                    ids
+                );
+                if open {
+                    assert!(h.get_by_label("Other").rect().left() > branch.left());
+                }
+            }
+            h.get_by_label("Collapse Demo device").focus();
+            h.run_steps(2);
+            h.key_press(egui::Key::Space);
+            settle(&mut h);
+            assert!(h.query_by_label("Photos").is_none());
+            assert_eq!(h.state().folder_sel, FolderSelection::Folder(1));
+            h.get_by_label("Demo device").focus();
+            h.run_steps(2);
+            h.key_press(egui::Key::Enter);
+            settle(&mut h);
+            assert!(h.query_by_label("Photos").is_some());
+            assert_eq!(
+                h.state().folder_sel,
+                FolderSelection::Device("synthetic-device".into())
+            );
+        }
+    }
+}
+
+#[test]
 fn folders_fill_sidebar_and_respond_at_the_right_edge() {
     let device_name = "A very long device name that should truncate inside the sidebar";
     let fixture = Fixture::new();
@@ -690,16 +758,15 @@ fn folders_fill_sidebar_and_respond_at_the_right_edge() {
                 click_position(&mut h, right_edge(photos));
                 assert_eq!(h.state().folder_sel, FolderSelection::Folder(1));
                 // The separate arrow still expands folders without selecting them.
-                let gap = h.ctx.style_of(theme).spacing.item_spacing.x;
-                let arrow = egui::pos2(photos.left() - gap - 9.0, photos.center().y);
-                click_position(&mut h, arrow);
+                h.get_by_label("Expand Photos").click();
+                settle(&mut h);
                 let child = h.get_by_label("Other").rect();
                 assert!((child.right() - all.right()).abs() < 1.0);
                 assert!(child.left() > photos.left());
                 assert_eq!(h.state().folder_sel, FolderSelection::Folder(1));
                 // Device arrows still collapse; clicking its name reopens it.
-                let arrow = egui::pos2(device.left() - gap - 9.0, device.center().y);
-                click_position(&mut h, arrow);
+                h.get_by_label(&format!("Collapse {device_name}")).click();
+                settle(&mut h);
                 assert!(h.query_by_label("Photos").is_none());
                 assert_eq!(h.state().folder_sel, FolderSelection::Folder(1));
                 click_position(&mut h, right_edge(device));

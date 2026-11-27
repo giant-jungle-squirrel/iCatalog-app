@@ -1444,3 +1444,26 @@ screenshots were inspected; `task ui:visual` passed with unchanged tolerances.
 Both native macOS smoke tests passed. Independent focused review identified and
 resolved weak light-theme focus contrast; no remaining findings. Windows/Linux
 native runtime and wasm qualification are not claimed.
+
+
+## D114 — Folder-tree chrome (2026-11-27)
+
+Restyle the hierarchy inside Folders to match D113's desktop appearance. Use
+Craft IconButton for unboxed, painted disclosure chevrons and original vector
+marks for devices, closed/open folders, All and Unassigned. Decorative icons are
+part of selectable row hit targets, with unchanged accessible names. Branches
+and leaves reserve the same 18-point disclosure column; nesting is 14 points.
+
+Preserve full remaining-width selection, long-name truncation/hover, fixed
+All/Unassigned controls and independent tree scrolling. Chevron pointer and
+Enter/Space activation only changes expansion; device selection still reopens
+its branches. Disclosure controls expose expanded state. No catalogue commands,
+filter semantics, Craft pin or new assets/dependencies. The shared docking
+accordion is unrelated to this folder hierarchy and remains unchanged.
+
+Tests cover icon click targets, independent keyboard disclosure/selection,
+branch/leaf alignment, right-edge clicks and both themes at native scales.
+
+Validation: `task ci` passed (160 headless UI tests), all 41 changed screenshots
+were inspected, `task ui:visual` passed without tolerance changes and both native
+macOS smoke tests passed. No Windows/Linux native or wasm runtime claim.
