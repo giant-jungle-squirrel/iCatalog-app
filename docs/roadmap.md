@@ -38,13 +38,13 @@ D24 UI checks exist: real-widget interaction/persistence tests in the workspace 
 
 The native Update smoke timeout is resolved: the test uses a unique temporary app identity with guarded PID targeting to avoid confusing another running iCatalog, and waits for foreground/menu readiness and picker dismissal. Three consecutive final local smoke runs passed Update persistence, Import cancellation and Command-Q; the workspace gate passed. Automation stage logs now survive failures/timeouts. Self-hosted native workflow execution remains unverified.
 
-List rows (D32) show thumbnails plus filename/rating/captured and modified dates/filesize; document/camera/lens/focal length; dimensions/colour/ICC profile. List uses the browsing width, an optional Details inspector, and horizontal scrolling in narrow windows. Import/update capture supported source colour information, and Update fills older entries without regenerating unchanged thumbnails. RAW source colour remains unavailable rather than inferred from its preview. Tests cover layout, missing metadata, edit refresh, profile removal/backfill/reopen and narrow/list visual baselines.
+List rows (D32) show thumbnails plus filename/rating/captured and modified dates/filesize; document/camera/lens/focal length; dimensions/colour/ICC profile. List uses the browser pane width and horizontal scrolling in narrow windows. Details is initially visible, with visibility shared across Grid and List (D112). Import/update capture supported source colour information, and Update fills older entries without regenerating unchanged thumbnails. RAW source colour remains unavailable rather than inferred from its preview. Tests cover layout, missing metadata, edit refresh, profile removal/backfill/reopen and narrow/list visual baselines.
 
 Collections fill the remaining sidebar height (D49), with scrolling for long lists and retained per-Collection member counts. The standalone asset-total footer and separator are removed. Checks cover short/tall windows, later-row selection after scrolling and populated-list screenshots.
 
 Folders navigation fills the available sidebar width (D42), including All/Unassigned, device headers and indented folder names. Disclosure arrows remain separate; long names truncate with hover text. Headless checks cover right-edge selection, nesting, collapse/reopen, both themes and display scales; screenshots cover device headers in both themes.
 
-Long folder trees scroll independently below fixed All/Unassigned controls (D62), using at most 45% of the remaining sidebar height. Collections remains reachable and retains its own scroll area. A headless 800×600 check scrolls to late rows in both lists and selects them.
+Folders and Collections now occupy independently resizable dock panels (D112), each with its own scrolling. All/Unassigned remain fixed above the folder tree. A headless 800×600 check scrolls to late rows in both lists and selects them.
 
 Details inspector and app dialogs have roomier local text layouts (D47): inset inspector content, larger line/section gaps, wrapping annotation controls and vertical scrolling; wider Collection/Smart rules/Connect/Sync dialog margins and field/button gaps. Rename/Edit Rules place Name beside its field, with Name aligned to rule inputs in Edit Rules. Smart rule fields/actions still fit at 800×600. Tests cover both themes/display scales, scrolled keyword editing and long sync diagnostics; screenshots include metadata and the scrolled inspector. Sidebar, grid/List and native OS picker spacing are unchanged.
 
@@ -148,3 +148,16 @@ sync. There are no interactive RAW recipes or original-media transfers.
 ## 6. How priority is decided
 
 The owner sets order (recorded in `docs/decisions.md` and `AGENTS.md`); crash-safety fixes outrank feature work (**Decided** golden rule). New decisions get a numbered entry in `docs/decisions.md`; this file then follows.
+
+
+D112 adds the saved Craft workspace: independent Folders, Collections and Details
+panels, movable/tabbed/floating inside the main window, with View → Panels and
+Reset Layout controls. Grid/List stays protected in the centre. The existing
+Craft pin and typography are retained; toolbar overflow and WidgetPalette extend
+shared-component use. One bounded local workspace file follows catalogue switches;
+invalid settings are preserved with a visible fallback. Native detached windows
+and named presets remain outside scope.
+
+D113 styles that workspace with PhotoCraft/LightCraft-inspired charcoal/silver
+surfaces, recessed inputs, neutral thumbnail cards/selection and accessible
+Grid/List icon controls. Fonts, command paths and the Craft pin remain unchanged.

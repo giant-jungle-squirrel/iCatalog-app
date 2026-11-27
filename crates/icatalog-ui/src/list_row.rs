@@ -56,7 +56,7 @@ pub fn draw(
     } else if hovered {
         visuals.bg_fill
     } else if index.is_multiple_of(2) {
-        ui.visuals().faint_bg_color
+        crate::typography::tile_fill(ui.visuals())
     } else {
         ui.visuals().panel_fill
     };
@@ -207,6 +207,17 @@ pub fn draw(
     let response = ui.interact(rect, id, egui::Sense::click_and_drag());
     response.widget_info(|| {
         egui::WidgetInfo::selected(egui::Role::Button, ui.is_enabled(), selected, &asset.name)
+    });
+    // A wide row can scroll beneath neighbouring dock panels. Expose only its
+    // visible hit area so accessibility activation stays inside this browser.
+    let visible = rect.intersect(ui.clip_rect());
+    ui.ctx().accesskit_node_builder(response.id, |node| {
+        node.set_bounds(egui::accesskit::Rect {
+            x0: f64::from(visible.left()),
+            y0: f64::from(visible.top()),
+            x1: f64::from(visible.right()),
+            y1: f64::from(visible.bottom()),
+        });
     });
     response.on_hover_cursor(egui::CursorIcon::PointingHand)
 }

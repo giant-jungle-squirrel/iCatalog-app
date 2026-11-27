@@ -104,6 +104,13 @@ fn isolated_executable(root: &Path) -> PathBuf {
     let executable = contents.join("MacOS").join(&executable_name);
     std::fs::create_dir_all(contents.join("MacOS")).unwrap();
     std::fs::copy(env!("CARGO_BIN_EXE_icatalog-ui"), &executable).unwrap();
+    let state_dir = root
+        .join("ui-state")
+        .display()
+        .to_string()
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;");
     std::fs::write(
         contents.join("Info.plist"),
         format!(
@@ -114,6 +121,7 @@ fn isolated_executable(root: &Path) -> PathBuf {
 <key>CFBundleIdentifier</key><string>org.icatalog.native-smoke.p{}</string>
 <key>CFBundleExecutable</key><string>{executable_name}</string>
 <key>CFBundlePackageType</key><string>APPL</string>
+<key>LSEnvironment</key><dict><key>ICATALOG_UI_STATE_DIR</key><string>{state_dir}</string></dict>
 <key>CFBundleDocumentTypes</key><array><dict>
   <key>CFBundleTypeName</key><string>iCatalog Catalogue</string>
   <key>CFBundleTypeRole</key><string>Editor</string>
@@ -256,6 +264,7 @@ fn native_menu_dialog_update_and_quit() {
     let stderr = std::fs::File::create(log_dir.join("native-stderr.log")).unwrap();
     let mut app = OwnedProcess(
         Command::new(isolated_executable(dir.path()))
+            .env("ICATALOG_UI_STATE_DIR", dir.path().join("ui-state"))
             .arg(&path)
             .stdout(Stdio::null())
             .stderr(stderr)
@@ -274,6 +283,9 @@ fn native_menu_dialog_update_and_quit() {
         if not (exists window 1) then error "No {APP_NAME} window"
         if not (exists menu item "Update" of menu "File" of menu bar item "File" of menu bar 1) then error "No File → Update menu"
         log "Smoke window and File menu ready"
+        if not (exists menu item "Reset Layout" of menu "View" of menu bar item "View" of menu bar 1) then error "No View → Reset Layout menu"
+        click menu item "Reset Layout" of menu "View" of menu bar item "View" of menu bar 1
+        log "Workspace reset through native View menu"
         repeat 200 times
             set appMenuName to name of menu bar item 2 of menu bar 1
             if appMenuName is "{APP_NAME}" then exit repeat

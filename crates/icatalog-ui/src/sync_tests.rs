@@ -114,7 +114,12 @@ fn failed_opening_check_without_prior_latch_fails_closed_with_retry_and_details(
         .get_by_label("Read-only: the sync status could not be verified.")
         .rect()
         .is_positive());
-    h.get_by_label("Details").click();
+    h.get(
+        By::new()
+            .label("Details")
+            .role(egui::accesskit::Role::DisclosureTriangle),
+    )
+    .click();
     settle(&mut h);
     assert!(h
         .get_by_label("internal error: certificate validation failed")

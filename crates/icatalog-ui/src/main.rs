@@ -14,6 +14,7 @@
 
 mod dates;
 mod dialog;
+mod dock_ui;
 mod fieldset;
 mod formatting;
 mod icon_button;
@@ -31,6 +32,7 @@ mod typography;
 #[cfg(test)]
 mod ui_tests;
 mod worker;
+mod workspace;
 
 use eframe::egui;
 use icatalog_catalog::{
@@ -240,6 +242,8 @@ struct NativeMenu {
     update: muda::MenuItem,
     connect: muda::MenuItem,
     sync: muda::MenuItem,
+    panels: Vec<(workspace::Panel, muda::CheckMenuItem)>,
+    reset_layout: muda::MenuItem,
 }
 #[cfg(not(target_os = "macos"))]
 type NativeMenu = ();
@@ -264,7 +268,7 @@ struct App {
     expanded: HashSet<i64>,
     collapsed_devices: HashSet<String>,
     view_mode: ViewMode,
-    list_details: bool,
+    workspace: workspace::Controller,
     list_metadata: HashMap<i64, Option<list_row::Metadata>>,
     selection: selection::AssetSelection,
     pending_asset_selection: Option<selection::SelectedUids>,
@@ -374,6 +378,29 @@ fn install_native_menu(
         let menu = Menu::new();
         let app_menu = Submenu::new(APP_NAME, true);
         let file_menu = Submenu::new("File", true);
+        let view_menu = Submenu::new("View", true);
+        let panels_menu = Submenu::new("Panels", true);
+        let panels: Vec<_> = workspace::Panel::AUXILIARY
+            .into_iter()
+            .map(|panel| {
+                let item = muda::CheckMenuItem::with_id(
+                    panel.menu_id(),
+                    panel.label(),
+                    true,
+                    true,
+                    None::<Accelerator>,
+                );
+                (panel, item)
+            })
+            .collect();
+        for (_, item) in &panels {
+            panels_menu.append(item).ok()?;
+        }
+        let reset_layout =
+            MenuItem::with_id("view.reset", "Reset Layout", true, None::<Accelerator>);
+        view_menu
+            .append_items(&[&panels_menu, &reset_layout])
+            .ok()?;
         let quit = MenuItem::with_id(
             "app.quit",
             format!("Quit {APP_NAME}"),
@@ -396,7 +423,9 @@ fn install_native_menu(
             && file_menu
                 .append_items(&[&import, &update, &connect, &sync])
                 .is_ok()
-            && menu.append_items(&[&app_menu, &file_menu]).is_ok();
+            && menu
+                .append_items(&[&app_menu, &file_menu, &view_menu])
+                .is_ok();
         if !built {
             return None;
         }
@@ -432,6 +461,8 @@ fn install_native_menu(
             update,
             connect,
             sync,
+            panels,
+            reset_layout,
         })
     }
     #[cfg(not(target_os = "macos"))]
@@ -447,7 +478,9 @@ impl App {
         interaction::configure(&cc.egui_ctx);
         let (menu_tx, menu_events) = std::sync::mpsc::channel();
         let menu = install_native_menu(&cc.egui_ctx, menu_tx);
-        Self::with_menu(ctx, path, menu, menu_events)
+        let mut app = Self::with_menu(ctx, path, menu, menu_events);
+        app.workspace = workspace::Controller::load_default();
+        app
     }
 
     fn with_menu(
@@ -493,7 +526,7 @@ impl App {
             expanded: HashSet::new(),
             collapsed_devices: HashSet::new(),
             view_mode: ViewMode::Grid,
-            list_details: false,
+            workspace: workspace::Controller::default(),
             list_metadata: HashMap::new(),
             selection: selection::AssetSelection::default(),
             pending_asset_selection: None,
@@ -1088,6 +1121,7 @@ impl App {
             self.status = format!("Cannot open Finder catalogue: {error}");
             return;
         }
+        next.workspace = std::mem::take(&mut self.workspace);
         next.menu = self.menu.take();
         let (_, empty_receiver) = std::sync::mpsc::channel();
         next.menu_events = std::mem::replace(&mut self.menu_events, empty_receiver);
@@ -1468,8 +1502,6 @@ impl App {
             FolderSelection::Collections(ids) => ids.iter().copied().collect(),
             _ => HashSet::new(),
         };
-        ui.separator();
-        ui.label("Collections");
         if ui
             .add_enabled(self.can_edit(), egui::Button::new("New Collection…"))
             .clicked()
@@ -2429,7 +2461,17 @@ fn draw_tile(
     name: &str,
     selected: bool,
 ) {
-    let img_rect = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), rect.width()));
+    ui.painter().rect_filled(
+        rect,
+        3.0,
+        if selected {
+            ui.visuals().selection.bg_fill
+        } else {
+            typography::tile_fill(ui.visuals())
+        },
+    );
+    let img_rect =
+        egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), rect.width())).shrink(6.0);
     ui.painter()
         .rect_filled(img_rect, 3.0, ui.visuals().extreme_bg_color);
     match tex {
@@ -2452,8 +2494,8 @@ fn draw_tile(
         }
     }
     let text_rect = egui::Rect::from_min_max(
-        egui::pos2(rect.left(), img_rect.bottom() + 3.0),
-        egui::pos2(rect.right(), rect.bottom()),
+        egui::pos2(rect.left() + 6.0, rect.top() + rect.width() + 3.0),
+        egui::pos2(rect.right() - 6.0, rect.bottom()),
     );
     let clipped = ui
         .painter()
@@ -2463,14 +2505,18 @@ fn draw_tile(
         egui::Align2::LEFT_TOP,
         name,
         egui::TextStyle::Body.resolve(ui.style()),
-        ui.visuals().text_color(),
+        if selected {
+            ui.visuals().selection.stroke.color
+        } else {
+            ui.visuals().text_color()
+        },
     );
     if selected {
         ui.painter().rect_stroke(
             rect,
             4.0,
-            egui::Stroke::new(2.0, egui::Color32::LIGHT_BLUE),
-            egui::StrokeKind::Middle,
+            egui::Stroke::new(2.0, ui.visuals().selection.stroke.color),
+            egui::StrokeKind::Inside,
         );
     }
 }
@@ -2515,7 +2561,16 @@ fn collection_params(action: &str, collection: i64, assets: &[i64]) -> Params {
 }
 
 impl eframe::App for App {
+    fn on_exit(&mut self) {
+        self.workspace.flush();
+        if let Some(warning) = self.workspace.warning() {
+            eprintln!("{warning}");
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.workspace.poll_save(ui.ctx());
+        self.update_workspace_menu();
         let was_picking = self.pickers.pending();
         self.dispatch_picker_answer();
         if was_picking && !self.pickers.pending() {
@@ -2622,6 +2677,7 @@ impl eframe::App for App {
                 }
                 "file.connect" => self.open_sync_dialog(true),
                 "file.sync" => self.open_sync_dialog(false),
+                id if id.starts_with("view.") => self.workspace_action(id),
                 _ => {}
             }
         }
@@ -2680,162 +2736,15 @@ impl eframe::App for App {
                             action = Some(Action::Update);
                         }
                     });
+                    ui.menu_button("View", |ui| self.workspace_menu(ui));
                 });
             });
         }
-        egui::Panel::left("folders")
-            .default_size(220.0)
-            .show(ui, |ui| {
-                // folder tree
-                let mut sel = self.folder_sel.clone();
-                ui.label("Folders");
-                if folder_row(ui, matches!(sel, FolderSelection::All), "All").clicked() {
-                    sel = FolderSelection::All;
-                }
-                if folder_row(ui, matches!(sel, FolderSelection::Unassigned), "Unassigned").clicked() {
-                    sel = FolderSelection::Unassigned;
-                }
-                fn folder_device(
-                    f: &Folder,
-                    devices: &HashMap<i64, (String, String)>,
-                ) -> (Option<String>, String) {
-                    match f.source_id.and_then(|s| devices.get(&s)) {
-                        Some((id, label)) => (Some(id.clone()), label.clone()),
-                        None => (None, "Other".to_string()),
-                    }
-                }
-                fn build_tree(
-                    ui: &mut egui::Ui,
-                    folders: &[Folder],
-                    parent: Option<i64>,
-                    state: &mut TreeState<'_>,
-                    depth: usize,
-                    devices: &HashMap<i64, (String, String)>,
-                ) {
-                    if depth >= 128 {
-                        ui.label("Folder nesting limit reached");
-                        return;
-                    }
-                    let mut children: Vec<&Folder> = folders
-                        .iter()
-                        .filter(|x| x.parent_id == parent)
-                        .collect();
-                    if parent.is_none() {
-                        // Group sources under their device (This Mac, disc, share).
-                        children.sort_by(|a, b| {
-                            let left_device = folder_device(a, devices);
-                            let right_device = folder_device(b, devices);
-                            left_device
-                                .1
-                                .cmp(&right_device.1)
-                                .then_with(|| left_device.0.cmp(&right_device.0))
-                                .then_with(|| {
-                                    a.path
-                                        .as_deref()
-                                        .unwrap_or(&a.name)
-                                        .cmp(b.path.as_deref().unwrap_or(&b.name))
-                                })
-                        });
-                    }
-                    let mut last_device: Option<(Option<String>, String)> = None;
-                    for f in children {
-                        if parent.is_none() {
-                            let (did, dev) = folder_device(f, devices);
-                            if last_device.as_ref() != Some(&(did.clone(), dev.clone())) {
-                                last_device = Some((did.clone(), dev.clone()));
-                                ui.add_space(6.0);
-                                let key = did.clone().unwrap_or_else(|| "Other".to_string());
-                                ui.horizontal(|ui| {
-                                    if did.is_some() {
-                                        // Accordion: the arrow collapses the
-                                        // device; its name selects every source
-                                        // on that device.
-                                        let open = !state.collapsed_devices.contains(&key);
-                                        if disclosure_arrow(ui, open, &dev).clicked() {
-                                            if open {
-                                                state.collapsed_devices.insert(key.clone());
-                                            } else {
-                                                state.collapsed_devices.remove(&key);
-                                            }
-                                        }
-                                        let is_sel = matches!(
-                                            state.selected,
-                                            FolderSelection::Device(d) if *d == key
-                                        );
-                                        if folder_row(
-                                                ui,
-                                                is_sel,
-                                                egui::RichText::new(&dev).strong(),
-                                            )
-                                            .on_hover_text(&dev)
-                                            .clicked()
-                                        {
-                                            state.collapsed_devices.remove(&key);
-                                            *state.selected = FolderSelection::Device(key.clone());
-                                        }
-                                    } else {
-                                        ui.add_space(16.0);
-                                        ui.label(egui::RichText::new(&dev).strong());
-                                    }
-                                });
-                            }
-                            if let Some(id) = &did {
-                                if state.collapsed_devices.contains(id) {
-                                    continue;
-                                }
-                            }
-                        }
-                        ui.horizontal(|ui| {
-                            ui.add_space(8.0 + depth as f32 * 12.0);
-                            let has_children = folders.iter().any(|x| x.parent_id == Some(f.id));
-                            if has_children {
-                                let exp = state.expanded.contains(&f.id);
-                                if disclosure_arrow(ui, exp, &f.name).clicked() {
-                                    if exp {
-                                        state.expanded.remove(&f.id);
-                                    } else {
-                                        state.expanded.insert(f.id);
-                                    }
-                                }
-                            } else {
-                                ui.add_space(16.0);
-                            }
-                            let is_sel = matches!(state.selected, FolderSelection::Folder(id) if *id == f.id);
-                            if folder_row(ui, is_sel, f.name.as_str()).on_hover_text(&f.name).clicked() {
-                                *state.selected = FolderSelection::Folder(f.id);
-                            }
-                        });
-                        if state.expanded.contains(&f.id) {
-                            build_tree(ui, folders, Some(f.id), state, depth + 1, devices);
-                        }
-                    }
-                }
-                let devices: HashMap<i64, (String, String)> = self
-                    .sources
-                    .iter()
-                    .map(|s| (s.id, s.device()))
-                    .collect();
-                let mut tree = TreeState {
-                    expanded: &mut self.expanded,
-                    collapsed_devices: &mut self.collapsed_devices,
-                    selected: &mut sel,
-                };
-                egui::ScrollArea::vertical()
-                    .id_salt("folder_tree")
-                    .auto_shrink([false, true])
-                    .max_height(ui.available_height() * 0.45)
-                    .show(ui, |ui| {
-                        build_tree(ui, &self.folders, None, &mut tree, 0, &devices);
-                    });
-                if sel != self.folder_sel {
-                    self.folder_sel = sel;
-                    self.collection_anchor = None;
-                    self.dirty = true;
-                }
-                collection_command = self.collections_panel(ui);
-            });
 
         egui::Panel::bottom("status").show(ui, |ui| {
+            if let Some(warning) = self.workspace.warning() {
+                ui.label(warning);
+            }
             match self.catalogue_access_state() {
                 CatalogueAccessState::BackupReadOnly => {
                     ui.horizontal(|ui| {
@@ -2996,79 +2905,8 @@ impl eframe::App for App {
             self.ensure_texture(&ctx, id);
         }
         self.ensure_detail();
-        let mut edit = None;
-        if self.view_mode == ViewMode::Grid || self.list_details {
-            egui::Panel::right("details")
-                .default_size(320.0)
-                .show(ui, |ui| {
-                    craft_ui::layout::Section::new(egui::Frame::NONE.inner_margin(6)).show(
-                        ui,
-                        |ui| {
-                            spacing::inspector(ui);
-                            egui::ScrollArea::vertical()
-                                .id_salt("details_content")
-                                .auto_shrink([false, false])
-                                .show(ui, |ui| {
-                                    ui.add_enabled_ui(self.can_edit(), |ui| {
-                                        edit = self.details_panel(ui);
-                                    });
-                                });
-                        },
-                    );
-                });
-        }
-
-        egui::CentralPanel::default().show(ui, |ui| {
-            // Full-width toolbar: view switch on the left, search on the right.
-            ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.view_mode, ViewMode::Grid, "Grid");
-                ui.selectable_value(&mut self.view_mode, ViewMode::List, "List");
-                if self.view_mode == ViewMode::List {
-                    ui.toggle_value(&mut self.list_details, "Details");
-                }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("Go").clicked() {
-                        self.dirty = true;
-                    }
-                    if ui
-                        .add_enabled(!self.search.is_empty(), egui::Button::new("x").small())
-                        .clicked()
-                    {
-                        self.search.clear();
-                        self.dirty = true;
-                    }
-                    let mut search = self.search.clone();
-                    let resp = ui.add(
-                        egui::TextEdit::singleline(&mut search)
-                            .hint_text("Search name or path")
-                            .desired_width(220.0),
-                    );
-                    resp.widget_info(|| {
-                        let mut info = egui::WidgetInfo::text_edit(
-                            ui.is_enabled(),
-                            &self.search,
-                            &search,
-                            "Search name or path",
-                        );
-                        info.label = Some("Search name or path".into());
-                        info
-                    });
-                    if resp.changed() {
-                        self.search = search.clone();
-                    }
-                    if resp.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                        self.dirty = true;
-                    }
-                });
-            });
-            ui.separator();
-            if let Some(params) = match self.view_mode {
-                ViewMode::Grid => self.grid(ui),
-                ViewMode::List => self.list(ui),
-            } {
-                collection_command = Some(params);
-            }
-        });
+        let (edit, dock_collection_command) = self.show_workspace(ui);
+        collection_command = dock_collection_command.or(collection_command);
         self.textures
             .retain(|id, _| self.visible_thumbnails.contains(id));
         self.attempted_thumbnails

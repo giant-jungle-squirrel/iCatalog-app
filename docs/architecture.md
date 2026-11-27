@@ -134,7 +134,7 @@ Commands return `Err` for any input (hostile params included). A fuzz-style test
 
 UI verification (D24/D97): `egui_kittest` is a UI-only dev dependency. Headless tests instantiate the same eframe App without installing OS menus; screenshot tests use its real renderer at fixed viewport/theme/scale. Native smoke launches the production binary, operates macOS menus/dialog cancellation through System Events, and checks Finder cold/running document delivery through LaunchServices. Test fixtures and snapshot baselines live under `crates/icatalog-ui`; no test logic enters the engine or catalogue layers.
 
-Folders rows (D42) use selectable buttons filling the remaining sidebar width, with left-aligned names, truncation and full-name hover text. All/Unassigned fill the content area; device and folder rows retain separate disclosure arrows and indentation. The device/folder tree scrolls independently within 45% of the sidebar height remaining after the fixed Folders/All/Unassigned controls (D62), leaving Collections reachable. Selection and collapse behavior remain shell state.
+Folders rows (D42) use selectable buttons filling the remaining sidebar width, with left-aligned names, truncation and full-name hover text. All/Unassigned fill the content area; device and folder rows retain separate disclosure arrows and indentation. The device/folder tree scrolls inside its own dock panel below fixed All/Unassigned controls (D112). Selection and collapse behavior remain shell state.
 
 Folder browsing (D43) sets `AssetQuery::folder_recursive` for desktop selections. The catalogue query follows `folder.parent_id` with a recursive CTE using `UNION` to deduplicate visited ids and terminate cycles. It filters the selected folder and descendants before ordering/paging, composing with search and other filters. Expansion state does not affect membership. Exact-folder queries remain the API default; the shell holds only selection/expansion state. No schema, command or dependency change.
 
@@ -144,13 +144,19 @@ connection (D83/D84). Their predicates remain in SQL before ordering and paging.
 The engine `edit` command skips annotation writes when a requested rating or
 label already has that value (D82), preserving timestamps and generation.
 
-The Collections scroll area fills the remaining sidebar height (D49), replacing its former 180-point cap. The standalone asset-total footer/separator is removed. The New Collection button remains above the scrolling rows, which retain per-Collection counts and selection behavior. This is shell layout only.
+The Collections scroll area fills its own dock panel below New Collection (D112), replacing D49/D62’s shared-sidebar allocation. The standalone asset-total footer/separator is removed. The New Collection button remains above the scrolling rows, which retain per-Collection counts and selection behavior. This is shell layout only.
 
 Collection renaming (D36) uses `collection rename --id … --name …` for both manual and Smart Collections. Every sidebar row offers Rename…; the shared collection modal and worker submit the same engine action as the CLI. Catalogue CRUD updates only `collection.name`; collection ids, membership and rules remain stable. No migration or dependency is needed.
 
-Visual comparisons allow no failed pixels. Two Linux 800×600 screenshots with a clipped thumbnail use a per-pixel YIQ colour tolerance of 1.0, based on inspected Mesa/Metal differences of at most two red-channel levels in two pixels. Other snapshots/platforms keep the library's 0.6 tolerance; reviewed baselines remain unchanged.
+Visual comparisons allow no failed pixels. Two Linux 800×600 screenshots with a clipped thumbnail use a per-pixel YIQ colour tolerance of 1.0, based on inspected Mesa/Metal differences of at most two red-channel levels in two pixels. Other snapshots/platforms keep the library's 0.6 tolerance. D112 intentionally updates reviewed baselines for the dockable layout, retaining zero failed pixels.
 
-List view (D32) renders a thumbnail and three metadata columns per asset: filename/rating/captured and modified dates/filesize; document type/camera/lens/focal length; dimensions/colour model/ICC description. It uses the browsing width by default; its Details toggle opens the existing inspector. Narrow windows and an open inspector use horizontal scrolling. Metadata reads are cached only for visible/selected rows and invalidated after refresh; errors are surfaced without repeating failed reads every frame. List display works from stored catalogue data, including offline media.
+List view (D32) renders a thumbnail and three metadata columns per asset: filename/rating/captured and modified dates/filesize; document type/camera/lens/focal length; dimensions/colour model/ICC description. It uses the browser pane width; Details visibility is shared across Grid and List and initially enabled (D112). Narrow windows and an open inspector use horizontal scrolling. Metadata reads are cached only for visible/selected rows and invalidated after refresh; errors are surfaced without repeating failed reads every frame. List display works from stored catalogue data, including offline media.
+
+Desktop appearance (D113) uses neutral charcoal/silver chrome, recessed fields, a
+distinct photo canvas and thumbnail cards. Craft WidgetPalette applies widget
+states; the shell supplies dock strip colours and original painted toolbar icons.
+Grid/List icon controls retain accessible names and keyboard activation. Palette
+checks cover readable text across widget states and both themes.
 
 Desktop typography (D33) is configured once for both egui themes in the UI-only `typography` module. Interface/caption text is 15 pt, List metadata 14 pt, small text 13 pt and headings 20 pt. Text and selection colours have tested contrast; metadata is no longer dimmed. Font hinting is enabled and fractional glyph variants are disabled, while theme-specific atlas gamma and eframe's native monitor scaling are preserved. No font assets, dependencies or engine commands are added.
 
@@ -230,12 +236,24 @@ match `<generator-version>:<preview-hash>`. Missing/older/mismatched markers or
 corrupt pixels trigger explicit regeneration. Failed decoding leaves the old
 asset and stored pixels intact. No schema or sync-protocol change.
 
-The desktop alone uses craft-ui icon buttons/section layout and craft-dialogs
-queued native pickers. Picker results carry typed intent and are applied only
-while the originating interaction remains valid. Existing engine command dispatch
-and annotation/replica permissions remain authoritative. egui/eframe and kittest
-move together to 0.37, with matching root egui/winit patches; PDF uses its pinned
-backend patches as well.
+The desktop alone uses craft-ui docking, icon buttons/sections, toolbar fitting
+and widget palettes, plus craft-dialogs queued native pickers (D105/D112).
+The UI-only workspace controller holds stable panel IDs and permission-checks
+layout actions. DockContent adapts existing panel bodies; catalogue edits continue
+through the existing engine/sync workers. The browser cannot close, float or hide
+behind tabs. Modal/pending-operation guards also block rearrangement.
+
+A bounded, versioned workspace.json in the per-user application-data directory
+remembers one arrangement across catalogues. Invalid settings fall back visibly
+without overwriting the original; Reset Layout explicitly allows replacement.
+A 500 ms debounce and atomic temporary-file replacement handle saves. Geometry
+and visibility remain shell state, separate from catalogues and sync preferences.
+Tests inject temporary paths or use in-memory workspace controllers.
+
+Picker results carry typed intent and are applied only while the originating
+interaction remains valid. Existing engine command dispatch and annotation/replica
+permissions remain authoritative. egui/eframe and kittest remain at 0.37 with the
+existing pinned egui/winit patches; no media dependency revision changes.
 
 ## 8. wasm constraints
 

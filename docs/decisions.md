@@ -1237,8 +1237,8 @@ Our own platform qualification remains separate.
   and wasm/browser validation of the new graph remain outstanding; previous
   released-build qualification does not establish this revision's compatibility.
 
-Unadopted editor/document-writing/docking/timeline/GPU APIs do not serve current
-cataloguing workflows. InDesign has no lightweight preview facade in this pin;
+At this checkpoint editor/document-writing/docking/timeline/GPU APIs remained
+unadopted. D112 subsequently adopts docking for the catalogue workspace. InDesign has no lightweight preview facade in this pin;
 ArtRage/Rebelle/Clip Studio/Procreate remain D103 research. PDF fidelity and camera
 coverage need broader fixtures. Resource limits are not a process sandbox.
 
@@ -1369,3 +1369,78 @@ other versions, orientations and native NAS/browser qualification remain open.
 ## Open questions
 Share-file mode: see the guides. (Samples licensing/commit strategy is resolved: D9.)
 
+
+
+## D112. Shared Craft components and a saved dockable workspace (2026-11-27)
+
+Expand the existing pinned craft-ui integration without changing dependency
+revisions, catalogue commands, schema or sync protocol. Folders, Collections and
+Details become independently movable, tabbed, hidden or floating panels inside
+the main native window. The virtualized Grid/List browser stays permanently open
+as a separate frame. Menus, status/recovery messages and modal dialogs remain
+outside docking. Native macOS View controls match the in-app menu.
+
+The default left dock is 220 points wide with Folders/Collections sharing its
+height 40/60; Details starts in a 320-point right dock. User resizing overrides
+these defaults. Each navigation panel scrolls independently, with All/Unassigned
+fixed above the folder tree. This supersedes D49/D62's shared-sidebar allocation.
+Details is initially visible in both Grid and List and has one visibility setting,
+superseding D32's List-only toggle. View → Panels restores hidden panels and
+View → Reset Layout restores the built-in arrangement.
+
+Use craft-ui Workspace/DockArea for layout and gestures, Section/IconButton for
+existing controls, toolbar fitting/overflow for narrow browser toolbars, and
+WidgetPalette for common widget styling. Preserve the existing colours, bundled
+fonts, native DPI, catalogue-specific rows, selection/drag semantics, modal guards
+and engine command dispatch. Keep resize handles outside content hit targets;
+List accessibility targets describe their visible clipped area. Details refreshes
+against the current selection regardless of panel draw order.
+
+One local workspace.json is shared across catalogues on this computer, in the
+platform application-data directory. Reads are bounded to 64 KiB with bounded
+JSON nesting, version/geometry/panel validation and protected-browser checks.
+Invalid/newer files are preserved while the app uses defaults, until explicit
+Reset Layout. Saves debounce 500 ms and use a flushed temporary file plus atomic
+replacement; errors remain visible. Floating chrome is constrained to the current
+workspace bounds. No layout data enters the catalogue or sync settings.
+
+Native detached windows, named presets, new fonts/assets and broader Craft
+revision upgrades are outside this change. The ICATALOG_UI_STATE_DIR environment
+override must be absolute and isolates native smoke-test settings; ordinary
+headless fixtures never load production settings.
+
+Validation: final `task ci` passed, including 158 headless UI tests. All 43
+changed/new screenshots were visually inspected and `task ui:visual` passed
+without tolerance changes. Both native macOS smoke tests passed, including
+View → Reset Layout. Independent review findings were resolved. Windows/Linux
+native runtime and browser qualification are not claimed by these local checks.
+
+
+## D113 — PhotoCraft / LightCraft desktop appearance (2026-11-27)
+
+The owner selected PhotoCraft/LightCraft's desktop style as the visual reference
+for the D112 workspace. Apply neutral charcoal dark chrome and silver light
+chrome, recessed fields, subtle panel boundaries, a distinct photo canvas and
+thumbnail cards with neutral selection rings. Grid/List toolbar controls combine
+original painted icons with visible labels, accessible names and keyboard
+activation. Dock strips are recessed and active tabs match their panel surfaces.
+
+Reference observations: [LightCraft's published grid](https://github.com/storytold/lightcraft/blob/5973d956dfbb44ed96b83e53edcc04733f3f1ceb/docs/images/grid-pd.jpg),
+[LightCraft theme](https://github.com/storytold/lightcraft/blob/5973d956dfbb44ed96b83e53edcc04733f3f1ceb/crates/ui-egui/src/theme.rs)
+and [PhotoCraft theme](https://github.com/storytold/photocraft/blob/main/crates/ui-egui/src/theme.rs)
+(viewed 2026-11-27). This is an original local styling implementation; no reference
+source code, icons, fonts, branding or screenshots are bundled.
+
+Keep the established 15 pt interface text, native DPI, workspace persistence,
+selection/drag behavior and command dispatch. Retain both system appearance modes;
+no theme picker, new dependencies, Craft revision change, schema or protocol
+change. This supersedes D112's colour preservation; docking behavior is unchanged.
+Tests cover neutral surface hierarchy, text contrast in both themes across all
+widget states, keyboard view switching and existing catalogue interactions.
+Screenshot changes require inspection without relaxed tolerances.
+
+Validation: `task ci` passed, including 159 headless UI tests. All 43 updated
+screenshots were inspected; `task ui:visual` passed with unchanged tolerances.
+Both native macOS smoke tests passed. Independent focused review identified and
+resolved weak light-theme focus contrast; no remaining findings. Windows/Linux
+native runtime and wasm qualification are not claimed.

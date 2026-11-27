@@ -45,9 +45,15 @@ fn inspector_and_list_share_regional_dates_and_keep_camera_time() {
                         format!("Captured: {captured}"),
                         format!("Modified: {modified}"),
                     ] {
-                        let rect = h.get_by_label(&text).rect();
-                        assert!(rect.height() >= 14.0);
-                        assert!(rect.top() >= 0.0 && rect.bottom() < 720.0);
+                        // Details remains open in List mode, so both views
+                        // must expose the same regional text simultaneously.
+                        let matches: Vec<_> = h.query_all(By::new().label(&text)).collect();
+                        assert_eq!(matches.len(), if list { 2 } else { 1 }, "{text}");
+                        for node in matches {
+                            let rect = node.rect();
+                            assert!(rect.height() >= 14.0);
+                            assert!(rect.top() >= 0.0 && rect.bottom() < 720.0);
+                        }
                     }
                 }
             }

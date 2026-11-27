@@ -1,6 +1,16 @@
 //! Layout and editing checks for the text panels at native display scales.
 use super::*;
 
+fn assert_within_inspector(h: &Harness<'_, App>, rect: egui::Rect) {
+    let heading = h
+        .get(By::new().label("Details").role(egui::accesskit::Role::Tab))
+        .rect();
+    assert!(
+        rect.left() >= heading.left() && rect.right() < h.ctx.viewport_rect().right(),
+        "inspector content {rect:?}, tab {heading:?}"
+    );
+}
+
 #[test]
 fn inspector_exposure_is_concise_and_preserves_stored_precision() {
     let fixture = Fixture::new();
@@ -26,7 +36,7 @@ fn inspector_exposure_is_concise_and_preserves_stored_precision() {
             let lens = h.get_by_label("Lens: 24–70 mm f/2.8").rect();
             let exposure = h.get_by_label("39.4mm  f/2.8  0.16s  ISO12800").rect();
             assert!(exposure.top() - lens.bottom() >= 7.5);
-            assert!(exposure.left() >= 480.0 && exposure.right() < 800.0);
+            assert_within_inspector(&h, exposure);
         }
     }
     assert_eq!(
@@ -73,13 +83,11 @@ fn inspector_path_truncates_in_the_middle_and_reveals_the_full_value_on_hover() 
                 if list {
                     h.get_by_label("List").click();
                     settle(&mut h);
-                    h.get_by_label("Details").click();
-                    settle(&mut h);
                 }
                 h.event(egui::Event::PointerGone);
                 h.run();
                 let bounds = h.get_by_label(&full).rect();
-                assert!(bounds.left() >= 480.0 && bounds.right() < 800.0);
+                assert_within_inspector(&h, bounds);
                 let mut paths = Vec::new();
                 for shape in &h.output().shapes {
                     path_galleys(&shape.shape, &mut paths);
@@ -222,10 +230,7 @@ fn inspector_rows_have_room_and_scrolled_annotations_still_save() {
                     rect.top() >= 0.0 && rect.bottom() < 450.0,
                     "{label}: {rect:?}"
                 );
-                assert!(
-                    rect.left() >= 480.0 && rect.right() < 800.0,
-                    "{label}: {rect:?}"
-                );
+                assert_within_inspector(&h, rect);
             }
             h.get_by_label("Keyword").click();
             let keyword = format!("Spacious {theme:?} {scale}");

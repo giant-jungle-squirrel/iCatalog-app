@@ -96,7 +96,7 @@ tasks:
       - cargo run -q -p icatalog-ui -- {{.CLI_ARGS}}
 
   ui:test:
-    desc: Headless UI interaction, persistence, viewport and HTTP sync tests (localhost access; also in task ci)
+    desc: Headless UI interaction, docking, persistence, viewport and HTTP sync tests (localhost access; also in task ci)
     cmds:
       - cargo test -p icatalog-ui
 
@@ -111,7 +111,7 @@ tasks:
       - env UPDATE_SNAPSHOTS=true cargo test -p icatalog-ui --bin icatalog-ui ui_tests::visual_snapshots -- --ignored --nocapture
 
   ui:smoke:
-    desc: Native macOS menus, picker cancellation, rescan and Command-Q (requires desktop permissions)
+    desc: Native macOS menus, workspace reset, picker cancellation, rescan and Command-Q (requires desktop permissions)
     preconditions:
       - sh: 'test "$(uname -s)" = Darwin'
         msg: Native UI smoke tests require a logged-in macOS desktop

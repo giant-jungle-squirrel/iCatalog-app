@@ -11,6 +11,8 @@ mod max_rating_tests;
 mod preview_tests;
 #[path = "../tests/support/mod.rs"]
 mod support;
+#[path = "workspace_tests.rs"]
+mod workspace_tests;
 use egui_kittest::{
     kittest::{By, NodeT, Queryable},
     Harness, SnapshotOptions,
@@ -474,7 +476,7 @@ fn long_folder_tree_scrolls_without_hiding_collections() {
 }
 
 #[test]
-fn collections_use_remaining_sidebar_height_and_scroll_to_later_rows() {
+fn collections_fill_their_dock_panel_and_scroll_to_later_rows() {
     let fixture = Fixture::new();
     let ctx = open_catalogue(&fixture.path()).unwrap();
     let mut last_id = 0;
@@ -489,24 +491,13 @@ fn collections_use_remaining_sidebar_height_and_scroll_to_later_rows() {
         for (size, scale) in [([800.0, 600.0], 1.0), ([1100.0, 900.0], 2.0)] {
             let mut h = fixture.harness_with_display(size, scale, theme);
             let button = h.get_by_label("New Collection…").rect();
-            let row = h.get_by_label("Collection 10").rect();
-            assert!(row.bottom() > button.bottom() + 180.0);
+            let first = h.get_by_label("Collection 00").rect();
+            assert!(first.top() > button.bottom());
             assert!(
-                row.bottom() < size[1],
-                "row should use the old footer's space: {row:?}"
+                button.top() > size[1] * 0.3,
+                "separate lower-left dock panel"
             );
             assert!(h.query_by_label("3 assets").is_none());
-            let row_above_bottom = if size[1] > 600.0 {
-                "Collection 22"
-            } else {
-                "Collection 12"
-            };
-            let lower = h.get_by_label(row_above_bottom).rect();
-            assert!(
-                lower.bottom() < size[1] && lower.bottom() > size[1] - 60.0,
-                "{lower:?}"
-            );
-
             h.get_by_label("Collection 39").scroll_to_me();
             settle(&mut h);
             let last = h.get_by_label("Collection 39").rect();
@@ -555,11 +546,15 @@ fn recursive_folder_browsing_includes_collapsed_descendants_and_scopes_search_an
         let visible_ids =
             |h: &Harness<'_, App>| h.state().assets.iter().map(|a| a.id).collect::<Vec<_>>();
         let toggle_arrow = |h: &mut Harness<'_, App>, label: &str| {
+            h.get_by_label(label).scroll_to_me();
+            settle(h);
             let rect = h.get_by_label(label).rect();
             let gap = h.ctx.style_of(egui::Theme::Dark).spacing.item_spacing.x;
             click_position(h, egui::pos2(rect.left() - gap - 9.0, rect.center().y));
             settle(h);
         };
+        h.get_by_label("Photos").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Photos").click();
         settle(&mut h);
         assert!(h.query_by_label("Trips").is_none());
@@ -584,10 +579,7 @@ fn recursive_folder_browsing_includes_collapsed_descendants_and_scopes_search_an
         )
         .click();
         settle(&mut h);
-        if mode == "List" {
-            h.get_by_label("Details").click();
-            settle(&mut h);
-        }
+        // Details remains visible when switching views.
         // Set explicitly: the second view sees the rating saved by the first.
         h.get_by_label("Rating 5").focus();
         h.run_steps(2);
@@ -603,33 +595,49 @@ fn recursive_folder_browsing_includes_collapsed_descendants_and_scopes_search_an
         toggle_arrow(&mut h, "Trips");
         assert_eq!(visible_ids(&h), vec![1, 2, 3]);
         assert_eq!(h.state().selection.primary, Some(3));
+        h.get_by_label("Trips").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Trips").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![2, 3]);
+        h.get_by_label("Beach").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Beach").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![3]);
         assert_eq!(h.state().selection.primary, Some(3));
+        h.get_by_label("Photos").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Photos").click();
         settle(&mut h);
         toggle_arrow(&mut h, "Photos");
         assert_eq!(visible_ids(&h), vec![1, 2, 3]);
         assert_eq!(h.state().selection.primary, Some(3));
+        h.get_by_label("Empty parent").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Empty parent").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![7]);
+        h.get_by_label("Empty leaf").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Empty leaf").click();
         settle(&mut h);
         assert!(h.state().assets.is_empty());
+        h.get_by_label("Sibling").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Sibling").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![4]);
         h.get_by_label("Unassigned").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![6]);
+        h.get_by_label("Demo device").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Demo device").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![1, 2, 3, 4, 7]);
+        h.get_by_label("Another device").scroll_to_me();
+        settle(&mut h);
         h.get_by_label("Another device").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![5]);
@@ -747,6 +755,10 @@ fn list_rows_present_metadata_columns_and_refresh_after_edit() {
     let fixture = Fixture::new();
     seed_list_metadata(&fixture);
     let mut h = fixture.harness([1100.0, 720.0]);
+    h.state_mut()
+        .workspace
+        .set_visible(workspace::Panel::Details, false)
+        .unwrap();
     h.get_by_label("List").click();
     settle(&mut h);
     let red = asset_rect(&h, "Red.bmp");
@@ -793,7 +805,12 @@ fn list_rows_present_metadata_columns_and_refresh_after_edit() {
     )
     .click();
     settle(&mut h);
-    h.get_by_label("Details").click();
+    h.get(
+        By::new()
+            .label("Details")
+            .role(egui::accesskit::Role::Button),
+    )
+    .click();
     settle(&mut h);
     h.get_by_label("Rating 5").click();
     settle(&mut h);
@@ -808,7 +825,12 @@ fn list_rows_present_metadata_columns_and_refresh_after_edit() {
             .rating,
         5
     );
-    h.get_by_label("Details").click();
+    h.get(
+        By::new()
+            .label("Details")
+            .role(egui::accesskit::Role::Button),
+    )
+    .click();
     settle(&mut h);
     assert!(h.get_by_label("Colour: RGB").rect().right() < 1100.0);
 }
@@ -1057,6 +1079,12 @@ fn interaction_rectangle_selection_replace_add_toggle_and_escape() {
     for mode in ["Grid", "List"] {
         let fixture = Fixture::new();
         let mut h = fixture.harness([1100.0, 720.0]);
+        if mode == "List" {
+            h.state_mut()
+                .workspace
+                .set_visible(workspace::Panel::Details, false)
+                .unwrap();
+        }
         h.get_by_label(mode).click();
         settle(&mut h);
         let red = asset_rect(&h, "Red.bmp");
@@ -1129,6 +1157,10 @@ fn interaction_rectangle_selection_tracks_scroll_in_content_coordinates() {
          INSERT INTO asset(id,uid,path,name,folder_id) SELECT x,'generated-'||x,'/synthetic/'||x,'Generated '||x,1 FROM n;"
     ).unwrap();
     let mut h = fixture.harness([1100.0, 720.0]);
+    h.state_mut()
+        .workspace
+        .set_visible(workspace::Panel::Details, false)
+        .unwrap();
     h.get_by_label("List").click();
     settle(&mut h);
     let red = asset_rect(&h, "Red.bmp");
@@ -2557,6 +2589,47 @@ fn visual_snapshots() {
     security.run();
     security.snapshot("catalogue-sync-security");
     results.extend(security.take_snapshot_results());
+    let mut docked = rich_fixture.harness([1100.0, 720.0]);
+    docked
+        .get(
+            By::new()
+                .label("Red.bmp")
+                .role(egui::accesskit::Role::Button),
+        )
+        .click();
+    settle(&mut docked);
+    docked
+        .state_mut()
+        .workspace
+        .apply_all(vec![
+            craft_ui::docking::Action::Move {
+                panel: workspace::Panel::Collections,
+                anchor: workspace::Panel::Folders,
+                placement: craft_ui::docking::Placement::Tab { before: None },
+            },
+            craft_ui::docking::Action::Float {
+                panel: workspace::Panel::Details,
+                rect: [740.0, 100.0, 320.0, 500.0],
+            },
+        ])
+        .unwrap();
+    settle(&mut docked);
+    docked.event(egui::Event::PointerGone);
+    docked.run();
+    docked.snapshot("catalogue-workspace-floating-tabs");
+    results.extend(docked.take_snapshot_results());
+    for panel in workspace::Panel::AUXILIARY {
+        docked
+            .state_mut()
+            .workspace
+            .set_visible(panel, false)
+            .unwrap();
+    }
+    settle(&mut docked);
+    docked.event(egui::Event::PointerGone);
+    docked.run();
+    docked.snapshot("catalogue-workspace-browser-only");
+    results.extend(docked.take_snapshot_results());
     preview_tests::visual_snapshots(&mut results);
 }
 

@@ -134,7 +134,7 @@ Priorities: format knowledge first (tracked in `ivc-file-research/AGENTS.md`), t
 3. Sync service and client.
 4. egui browser (desktop shell EXISTS in `icatalog-ui`, D15; wasm later).
 
-Craft media and shared GUI adoption EXISTS (D105), pinned to craft-libs `249a41bd9306a1b34330ac94e596a1a8b881378a`: extraction-first RAW previews with basic sensor conversion fallback; PSD/PSB saved thumbnails/merged RGB or grayscale composites; KRA/ORA/Affinity saved images; EPS/Illustrator saved previews; first-page PDF/PDF-compatible Illustrator rendering; PhotoCraft/VectorCraft saved renditions. Exact coverage and limits: `docs/media-support.md`. Import/Update/Generate share `icatalog-media::prepare_media`; generator 3 refreshes old thumbnails and version/hash metadata invalidates stored-preview caches without a schema/protocol change. GUI uses craft-ui icon buttons/section layout and craft-dialogs queued native pickers with coordinated egui 0.37/root patches. No RAW editor or recipes. D106 adds saved `.clip` canvas PNG extraction via craft-sqlite, validated with one supplied v1 file; single canvas/observed schema only, no layer rendering or animation selection (docs/clip-format.md). D108 adds `.reb` saved canvas PNG extraction through craft-zip/craft-xml, validated with one supplied Rebelle 8.3.4/format-8 file; units 1 and zero/absent safe boundary only, no layer rendering (docs/reb-format.md). D110 adds saved full-canvas `.ptg` PNG extraction, validated with one supplied ArtRage Vitae file; observed header/producer only, no layer rendering or thumbnail fallback (docs/ptg-format.md). D111 adds saved `.procreate`/`.procraft` QuickLook PNG extraction via craft-zip/craft-plist at the same pin, validated against one private real Procreate file and two owner-authorized ProCraft 0.8.0 saves; observed document versions 1/2 and orientations 1/4 only, no layer rendering (docs/procreate-format.md). Private Procreate artwork must never be committed. InDesign remains PLANNED (D103); missing-renderer variants are skipped. New dependency graph has not yet been qualified on native NAS/wasm.
+Craft media and shared GUI adoption EXISTS (D105), pinned to craft-libs `249a41bd9306a1b34330ac94e596a1a8b881378a`: extraction-first RAW previews with basic sensor conversion fallback; PSD/PSB saved thumbnails/merged RGB or grayscale composites; KRA/ORA/Affinity saved images; EPS/Illustrator saved previews; first-page PDF/PDF-compatible Illustrator rendering; PhotoCraft/VectorCraft saved renditions. Exact coverage and limits: `docs/media-support.md`. Import/Update/Generate share `icatalog-media::prepare_media`; generator 3 refreshes old thumbnails and version/hash metadata invalidates stored-preview caches without a schema/protocol change. GUI uses craft-ui docking/workspace, widget palettes, toolbar fitting, icon buttons/section layout (D112) and craft-dialogs queued native pickers with coordinated egui 0.37/root patches. No RAW editor or recipes. D106 adds saved `.clip` canvas PNG extraction via craft-sqlite, validated with one supplied v1 file; single canvas/observed schema only, no layer rendering or animation selection (docs/clip-format.md). D108 adds `.reb` saved canvas PNG extraction through craft-zip/craft-xml, validated with one supplied Rebelle 8.3.4/format-8 file; units 1 and zero/absent safe boundary only, no layer rendering (docs/reb-format.md). D110 adds saved full-canvas `.ptg` PNG extraction, validated with one supplied ArtRage Vitae file; observed header/producer only, no layer rendering or thumbnail fallback (docs/ptg-format.md). D111 adds saved `.procreate`/`.procraft` QuickLook PNG extraction via craft-zip/craft-plist at the same pin, validated against one private real Procreate file and two owner-authorized ProCraft 0.8.0 saves; observed document versions 1/2 and orientations 1/4 only, no layer rendering (docs/procreate-format.md). Private Procreate artwork must never be committed. InDesign remains PLANNED (D103); missing-renderer variants are skipped. New dependency graph has not yet been qualified on native NAS/wasm.
 
 Manual Collections EXIST (D25): create/browse/add/remove through the engine, CLI and desktop sidebar on the v1 tables (desktop creation uses a modal, D26); membership does not move assets between folders. Grid/list assets can be dragged onto a collection or edited through a right-click collection menu (D27). Shift-click ranges and Ctrl/⌘-click toggles select multiple collections for a combined asset view (D28). Smart Collections EXIST (D35): the same New Collection modal offers a Smart Collection option with AND rules over format, local capture-date range, camera/lens, minimum/maximum rating, label, keyword and filename/path text. They display a (Smart) suffix and live counts, support mixed collection selection/search, and expose Edit Rules… on right-click. Membership is computed, so drops and manual membership checkboxes apply only to manual collections. Schema v8 stores bounded typed rules, including an optional inclusive maximum rating (D57); existing catalogues migrate automatically.
 
@@ -152,17 +152,17 @@ Double-clicking a normal Collection opens Rename with its name focused and selec
 
 Asset selections support ranges, toggles and rectangle selection with wheel scrolling. Their Collections context submenu uses cached tri-state membership checkboxes (D29), and each sidebar collection shows a member count with space reserved beside its truncated name (D30).
 
-Collections use all remaining sidebar height below the Folders tree, heading and New Collection button (D49). The standalone asset-total footer and separator are removed; long lists scroll and each Collection retains its own member count.
+Collections fill their own independently resizable dock panel below New Collection (D112, superseding D49). The standalone asset-total footer and separator are removed; long lists scroll and each Collection retains its own member count.
 
 Folders navigation fills the available sidebar width (D42): All and Unassigned span the content area; device headers and folder names extend to its right edge while retaining disclosure arrows and tree indentation. Long names truncate with full-name hover text.
 
-Long device/folder trees scroll independently below fixed All and Unassigned controls (D62), using at most 45% of the sidebar height left after those controls. Collections remains reachable below and scrolls separately; short trees use only their content height.
+Long device/folder trees scroll inside the Folders dock panel below fixed All and Unassigned controls (D112, superseding D62’s shared-sidebar 45% cap). Collections has a separate scrollable dock panel.
 
 Selecting a folder includes assets in that folder and all descendants in grid/list (D43), even when the branch is collapsed. Search narrows the entire selected subtree. The shared `AssetQuery::folder_recursive` option follows catalogue parent links with cycle-safe SQL before paging; exact-folder queries remain available by default. No schema or CLI change.
 
 Thumbnails use the asset's EXIF orientation, including mirrored values (D31). Import/update store oriented pixels; desktop display applies stored metadata to older, unapplied thumbnails without modifying the catalogue or requiring the original media.
 
-List view uses thumbnail rows with filename/rating/dates/filesize, document/camera/lens/focal length, and dimensions/colour/profile columns (D32). It uses the browsing width with an optional Details inspector and horizontal scrolling in narrow windows. Import/update capture supported source colour/ICC descriptions; Update backfills older catalogue entries. Missing metadata stays explicit.
+List view uses thumbnail rows with filename/rating/dates/filesize, document/camera/lens/focal length, and dimensions/colour/profile columns (D32). It uses the browser pane width and horizontal scrolling in narrow windows. Details is initially visible in both Grid and List, with one shared visibility setting (D112). Import/update capture supported source colour/ICC descriptions; Update backfills older catalogue entries. Missing metadata stays explicit.
 
 Desktop typography uses 15 pt interface/caption text, 14 pt List metadata and 13 pt small text, with stronger contrast in both themes (D33). Font hinting stays enabled and fractional glyph variants are disabled; eframe's native monitor scale is preserved. Headless layout checks cover 1×/1.5×/2× scales; visual baselines also cover light and Retina List views.
 
@@ -227,3 +227,24 @@ Five reusable project agents EXIST in `.codex/agents/`: `legacy_format`, `catalo
 - Real today: app-side, `icatalog-catalog`, `icatalog-media`, `icatalog-engine`, `icatalog-sync` (revision-checked user-edit uploads and catalogue/preview pulls, D20/D44), the `icatalog` CLI and the `icatalog-ui` desktop shell; D99 sync check/recovery is implemented; `ivc-file-research/docs/ivc-format.md` and `ivc-file-research/crates/ivc/tests/samples.rs` back the import path.
 - EXISTS: `log/devlog.md` (local, gitignored; append a terse entry per task).
 - Open question: whether the sync service is mandatory or also offers a simple share-file mode. (Samples corpus: resolved, see `ivc-file-research/samples/fetch.sh`.)
+
+
+## D112 desktop workspace
+
+The native shell uses craft-ui Workspace/DockArea at the existing Craft pin for
+independent Folders, Collections and Details panels. They can move, tab, hide and
+float inside the main window; Grid/List stays a protected central frame. View →
+Panels and Reset Layout exist in native macOS and in-app menus. Default docks are
+220 points left (Folders/Collections 40/60) and 320 points right (Details); user
+resizing overrides defaults. Catalogue rows, selection, command workers and
+modal guards remain authoritative. WidgetPalette and toolbar fitting/overflow
+extend shared-component adoption. D113 retains the fonts and applies PhotoCraft/
+LightCraft-inspired charcoal/silver surfaces, recessed fields, neutral thumbnail
+selection and accessible Grid/List icon controls.
+
+One bounded local workspace.json remembers arrangement across catalogues. Bad or
+newer files stay untouched until explicit reset; errors are visible. Debounced
+saves use atomic replacement. ICATALOG_UI_STATE_DIR selects an absolute isolated
+test directory. Layout never enters catalogue/sync state. Detached OS windows and
+named workspace presets are not implemented. Tests and settings paths are in
+`docs/development.md`.
