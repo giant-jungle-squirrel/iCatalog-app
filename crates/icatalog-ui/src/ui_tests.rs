@@ -9,6 +9,8 @@ mod dialog_tests;
 mod max_rating_tests;
 #[path = "preview_tests.rs"]
 mod preview_tests;
+#[path = "search_tests.rs"]
+mod search_tests;
 #[path = "../tests/support/mod.rs"]
 mod support;
 #[path = "workspace_tests.rs"]
@@ -590,7 +592,7 @@ fn recursive_folder_browsing_includes_collapsed_descendants_and_scopes_search_an
         settle(&mut h);
         assert_eq!(h.state().folder_sel, FolderSelection::Folder(1));
         assert_eq!(visible_ids(&h), vec![3]);
-        h.get_by_label("x").click();
+        h.get_by_label("Clear search").click();
         settle(&mut h);
         assert_eq!(visible_ids(&h), vec![1, 2, 3]);
         // Expanding and collapsing the tree does not change results or asset selection.
@@ -1135,7 +1137,7 @@ fn interaction_asset_modifier_selection_and_filter_pruning() {
         h.key_press(egui::Key::Enter);
         settle(&mut h);
         assert_eq!(h.state().selection.ordered(&h.state().assets), vec![2]);
-        h.get_by_label("x").click();
+        h.get_by_label("Clear search").click();
         settle(&mut h);
         assert_eq!(h.state().selection.ordered(&h.state().assets), vec![2]);
     }
@@ -1778,7 +1780,7 @@ fn interaction_collections_shift_ranges_ctrl_command_toggles_and_search() {
         settle(&mut h);
         assert_view(&h, &[alpha, charlie, delta], &[]);
         assert_eq!(h.state().search, "Blue");
-        h.get_by_label("x").click();
+        h.get_by_label("Clear search").click();
         settle(&mut h);
         h.get_by_label("Bravo").click();
         settle(&mut h);
@@ -1952,7 +1954,7 @@ fn interaction_edit_search_and_reopen() {
         reopened.catalog().asset_keywords(1).unwrap()[0].name,
         "Favourite"
     );
-    h.get_by_label("x").click();
+    h.get_by_label("Clear search").click();
     settle(&mut h);
     assert_eq!(h.state().assets.len(), 2);
     h.get_by_label("List").click();
@@ -2008,7 +2010,7 @@ fn interaction_collections_create_add_search_remove_and_reopen() {
     h.key_press(egui::Key::Enter);
     settle(&mut h);
     assert!(h.state().assets.is_empty());
-    h.get_by_label("x").click();
+    h.get_by_label("Clear search").click();
     settle(&mut h);
     h.get(
         By::new()
@@ -2235,6 +2237,26 @@ fn visual_snapshots() {
     narrow.run();
     narrow.snapshot_options("catalogue-narrow", &linux_pixel_rounding_options);
     let mut results = h.take_snapshot_results();
+    for (name, theme, size) in [
+        ("catalogue-search", egui::Theme::Dark, [800.0, 600.0]),
+        (
+            "catalogue-search-light",
+            egui::Theme::Light,
+            [1100.0, 720.0],
+        ),
+    ] {
+        let mut search = fixture.harness_with_display(size, 1.0, theme);
+        search.get_by_label("Search name or path").click();
+        search
+            .get_by_label("Search name or path")
+            .type_text("a long folder/path with text to scroll");
+        settle(&mut search);
+        search.event(egui::Event::PointerGone);
+        search.run();
+        search.snapshot(name);
+        results.extend(search.take_snapshot_results());
+    }
+
     results.extend(narrow.take_snapshot_results());
     let expanded_fixture = Fixture::new();
     let expanded_ctx = open_catalogue(&expanded_fixture.path()).unwrap();

@@ -248,3 +248,8 @@ saves use atomic replacement. ICATALOG_UI_STATE_DIR selects an absolute isolated
 test directory. Layout never enters catalogue/sync state. Detached OS windows and
 named workspace presets are not implemented. Tests and settings paths are in
 `docs/development.md`.
+
+D115 joins browser search and Go with matching height and adjacent edges. A
+Clear search cross appears inside nonempty fields; it clears within the current
+scope and returns typing focus. Enter/Go submission and narrow toolbar overflow
+are preserved. The UI-only search_control helper adds no query logic.

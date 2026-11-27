@@ -423,36 +423,7 @@ impl App {
     }
 
     fn search_controls(&mut self, ui: &mut egui::Ui) {
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.small_button("Go").clicked() {
-                self.dirty = true;
-            }
-            if ui
-                .add_enabled(!self.search.is_empty(), egui::Button::new("x").small())
-                .clicked()
-            {
-                self.search.clear();
-                self.dirty = true;
-            }
-            let response = ui.add(
-                egui::TextEdit::singleline(&mut self.search)
-                    .hint_text("Search name or path")
-                    .desired_width(ui.available_width().min(220.0)),
-            );
-            response.widget_info(|| {
-                let mut info = egui::WidgetInfo::text_edit(
-                    ui.is_enabled(),
-                    &self.search,
-                    &self.search,
-                    "Search name or path",
-                );
-                info.label = Some("Search name or path".into());
-                info
-            });
-            if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                self.dirty = true;
-            }
-        });
+        self.dirty |= search_control::show(ui, &mut self.search);
     }
 }
 

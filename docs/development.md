@@ -451,3 +451,9 @@ or a folder icon/name/right edge to select its subtree. Focused chevrons also
 respond to Enter/Space without changing selection. Selecting a collapsed device
 reopens it. Branch and leaf labels align at each level; long names retain full-name
 hover text. Checks cover both themes at 1×/1.5×/2× and reviewed folder screenshots.
+
+Browser search (D115) joins the field directly to Go. Enter or Go submits; the
+in-field cross appears for nonempty text, shows a pointer cursor on hover, and
+clears the query while keeping the
+current folder/Collection scope. Clearing returns focus to the field. Narrow
+panes keep this joined control on its own toolbar row.

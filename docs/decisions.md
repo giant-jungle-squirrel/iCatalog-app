@@ -1467,3 +1467,27 @@ branch/leaf alignment, right-edge clicks and both themes at native scales.
 Validation: `task ci` passed (160 headless UI tests), all 41 changed screenshots
 were inspected, `task ui:visual` passed without tolerance changes and both native
 macOS smoke tests passed. No Windows/Linux native or wasm runtime claim.
+
+
+## D115 — Joined search control (2026-11-27)
+
+Place the browser search field directly beside Go, with matching height and
+joined corners. A painted Clear search cross appears inside the field when it
+contains text. Reserved padding keeps long queries/carets away from the cross;
+clearing restores the current scope's results and returns typing focus to the
+field. Go and Enter retain the explicit submit behavior.
+
+The UI-only search_control helper uses the styled egui TextEdit/Button and a
+Craft IconButton for the clear action, with separate accessible names and
+keyboard activation. The group remains right-aligned and uses the existing
+second-row placement in narrow browser panes. No search command, filtering,
+workspace persistence or dependency changes.
+
+Tests cover joined geometry, clear containment, long text, pointer Go/clear,
+Enter submission and keyboard clearing in both themes at 1×/1.5×/2×. Dedicated
+filled-search screenshots show the in-field cross and scrolled text.
+
+Validation: `task ci` passed, including 161 headless UI tests. All 36 changed/new
+screenshots were inspected, including filled-search dark/light views;
+`task ui:visual` passed with unchanged tolerances. Both native macOS smoke tests
+passed. No Windows/Linux native runtime or wasm qualification is claimed.

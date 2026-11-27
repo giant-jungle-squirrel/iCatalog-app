@@ -657,7 +657,7 @@ fn smart_live_annotation_edits_mixed_selection_search_and_membership_gestures() 
         h.key_press(egui::Key::Enter);
         settle(&mut h);
         assert_eq!(h.state().assets.len(), 1);
-        h.get_by_label("x").click();
+        h.get_by_label("Clear search").click();
         settle(&mut h);
         h.get_by_label("All").click();
         settle(&mut h);

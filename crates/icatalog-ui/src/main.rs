@@ -25,6 +25,7 @@ mod navigation;
 mod pickers;
 mod preview;
 mod rating;
+mod search_control;
 mod selection;
 mod smart_collection;
 mod spacing;
