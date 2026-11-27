@@ -347,7 +347,7 @@ mod unix {
             Command::new(&containers.engine)
                 .arg("cp")
                 .arg(format!(
-                    "{}:/usr/share/licenses/icatalog/craft-libs",
+                    "{}:/usr/share/licenses/icatalog",
                     containers.server
                 ))
                 .arg(&notices)
@@ -364,7 +364,13 @@ mod unix {
         ] {
             assert_eq!(
                 std::fs::read(root().join("licenses/craft-libs").join(notice)).unwrap(),
-                std::fs::read(notices.join(notice)).unwrap(),
+                std::fs::read(notices.join("craft-libs").join(notice)).unwrap(),
+            );
+        }
+        for notice in ["README.md", "OFL-Inter.txt", "OFL-JetBrainsMono.txt"] {
+            assert_eq!(
+                std::fs::read(root().join("licenses/ui-fonts").join(notice)).unwrap(),
+                std::fs::read(notices.join("ui-fonts").join(notice)).unwrap(),
             );
         }
         success(containers.cli(

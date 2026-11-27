@@ -25,8 +25,20 @@ if (Test-Path -LiteralPath 'licenses/craft-libs' -PathType Container) {
             throw "Missing dependency notice: $notice"
         }
     }
-    $contents += 'licenses'
 } elseif (Select-String -LiteralPath 'Cargo.lock' -Pattern '^name = "craft-(ui|raw|pdf)"$' -Quiet) {
     throw 'Missing licenses/craft-libs notices required by this application source.'
+}
+if (Test-Path -LiteralPath 'licenses/ui-fonts' -PathType Container) {
+    foreach ($required in @('README.md', 'OFL-Inter.txt', 'OFL-JetBrainsMono.txt')) {
+        $notice = "licenses/ui-fonts/$required"
+        if (!(Test-Path -LiteralPath $notice -PathType Leaf) -or (Get-Item -LiteralPath $notice).Length -eq 0) {
+            throw "Missing UI font notice: $notice"
+        }
+    }
+} elseif (Test-Path -LiteralPath 'crates/icatalog-ui/assets/fonts' -PathType Container) {
+    throw 'Missing licenses/ui-fonts notices required by this application source.'
+}
+if ((Test-Path -LiteralPath 'licenses/craft-libs' -PathType Container) -or (Test-Path -LiteralPath 'licenses/ui-fonts' -PathType Container)) {
+    $contents += 'licenses'
 }
 Compress-Archive -LiteralPath $contents -DestinationPath $archive -Force

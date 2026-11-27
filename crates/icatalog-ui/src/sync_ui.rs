@@ -49,7 +49,7 @@ pub(super) struct SyncDialog {
     pub error: Option<String>,
     pub result: Option<String>,
     focus_url: bool,
-    last_rect: Option<egui::Rect>,
+    pub(super) last_rect: Option<egui::Rect>,
 }
 
 pub(super) struct SyncJob {
@@ -385,13 +385,17 @@ impl App {
         let mut address_changed = false;
         let modal_id = egui::Id::unique("client_sync");
         let area = egui::Modal::default_area(modal_id)
-            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 32.0));
+            .anchor(egui::Align2::CENTER_TOP, egui::vec2(0.0, 32.0))
+            .constrain_to(ctx.content_rect().shrink(4.0));
         let response = egui::Modal::new(modal_id).area(area)
             .frame(egui::Frame::popup(&ctx.global_style()).inner_margin(12))
             .show(ctx, |ui| {
             if picking { ui.disable(); }
             super::spacing::dialog(ui);
-            ui.set_width(430.0);
+            ui.spacing_mut().item_spacing.y = 6.0;
+            // Keep the expanded security form and actions within an 800×600
+            // window with the embedded interface fonts.
+            ui.set_width(480.0);
             close = super::dialog::header(ui,
                 if dialog.clone { "Connect to Server" } else { "Sync catalogue" },
                 !dialog.pending);

@@ -1174,6 +1174,8 @@ fn security_settings_fit_and_clear_selected_files_without_persisting_them() {
             d.error = Some("A long authentication error. ".repeat(100));
             settle(&mut h);
             assert!(h.get_by_label("Sync now").rect().bottom() < 600.0);
+            let modal = h.state().sync_dialog.as_ref().unwrap().last_rect.unwrap();
+            assert!(modal.top() > 0.0 && modal.bottom() < 600.0, "{modal:?}");
             h.get_by_label("Clear token file").click();
             settle(&mut h);
             assert!(h.state().sync_dialog.as_ref().unwrap().token_file.is_none());

@@ -26,7 +26,12 @@ fn assert_notice_bundle(destination: &std::path::Path) {
             }
         }
     }
-    compare(&root().join("licenses/craft-libs"), destination);
+    for bundle in ["craft-libs", "ui-fonts"] {
+        compare(
+            &root().join("licenses").join(bundle),
+            &destination.join(bundle),
+        );
+    }
 }
 
 #[cfg(unix)]
@@ -52,6 +57,43 @@ fn notice_packaging_requires_the_bundle_only_for_craft_sources() {
         !run().status.success(),
         "an incomplete notice bundle must fail"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn ui_font_notices_are_required_complete_and_copied_byte_exactly() {
+    let scratch = tempfile::tempdir().unwrap();
+    let destination = scratch.path().join("output with spaces");
+    let run = || {
+        Command::new("bash")
+            .arg(root().join("packaging/copy-notices.sh"))
+            .arg(&destination)
+            .current_dir(scratch.path())
+            .output()
+            .unwrap()
+    };
+    // Old releases with neither Craft nor bundled UI fonts still package.
+    std::fs::write(scratch.path().join("Cargo.lock"), "version = 4\n").unwrap();
+    success(run());
+    assert!(!destination.exists());
+    std::fs::create_dir_all(scratch.path().join("crates/icatalog-ui/assets/fonts")).unwrap();
+    assert!(!run().status.success(), "font assets require their notices");
+    let source = scratch.path().join("licenses/ui-fonts");
+    std::fs::create_dir_all(&source).unwrap();
+    for name in ["README.md", "OFL-Inter.txt", "OFL-JetBrainsMono.txt"] {
+        assert!(!run().status.success(), "missing {name} must fail");
+        std::fs::write(source.join(name), "").unwrap();
+        assert!(!run().status.success(), "empty {name} must fail");
+        std::fs::write(source.join(name), format!("Notice fixture for {name}\n")).unwrap();
+    }
+    success(run());
+    for entry in std::fs::read_dir(&source).unwrap() {
+        let entry = entry.unwrap();
+        assert_eq!(
+            std::fs::read(entry.path()).unwrap(),
+            std::fs::read(destination.join("ui-fonts").join(entry.file_name())).unwrap()
+        );
+    }
 }
 
 #[test]
@@ -169,7 +211,7 @@ fn nas_archives_contain_an_executable_cli_and_notices_for_each_target() {
                 .unwrap(),
         );
         let cli = extracted.join("icatalog");
-        assert_notice_bundle(&extracted.join("licenses/craft-libs"));
+        assert_notice_bundle(&extracted.join("licenses"));
         success(Command::new(&cli).arg("--version").output().unwrap());
         let catalogue = extracted.join("smoke.sqlite");
         success(
@@ -436,9 +478,7 @@ fn desktop_archive_contains_both_executables_and_a_working_cli() {
                 .output()
                 .unwrap(),
         );
-        assert_notice_bundle(
-            &extracted.join("iCatalog.app/Contents/Resources/licenses/craft-libs"),
-        );
+        assert_notice_bundle(&extracted.join("iCatalog.app/Contents/Resources/licenses"));
     }
     #[cfg(windows)]
     {
@@ -458,7 +498,7 @@ fn desktop_archive_contains_both_executables_and_a_working_cli() {
         assert!(extracted.join("README.txt").is_file());
     }
     assert!(ui.is_file());
-    assert_notice_bundle(&extracted.join("licenses/craft-libs"));
+    assert_notice_bundle(&extracted.join("licenses"));
     success(Command::new(&cli).arg("--version").output().unwrap());
     let catalogue = scratch.path().join("smoke.sqlite");
     success(

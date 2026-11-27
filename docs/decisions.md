@@ -1565,3 +1565,79 @@ passed. Independent review findings were resolved, including read-only legacy
 backup browsing, interrupted v8 recovery, complete conflict details and
 whitespace-preserving editor round trips. No native Linux/Windows/NAS or wasm
 qualification is claimed for this change.
+
+
+## D118 — Native ArtCraft interface fonts (2026-11-27; superseded by D119)
+
+The owner requested native ArtCraft’s typefaces. Embed its unmodified OFL-1.1
+Inter, Archivo and Geist Mono variable fonts at the source revision recorded
+in `licenses/ui-fonts/README.md`. Body/small text uses Inter 400 (optical size 14),
+buttons Inter 500, headings Archivo 620 at 118% width, and monospace Geist Mono 400.
+Retain iCatalog’s D33 body sizes, contrast, hinting and native display scaling.
+After comparison with ArtCraft, use compact 18 pt headings with its -0.03 em
+letter spacing. ArtCraft’s default and Settings/Sign-in titles are 24 pt; its
+provider dialogs use 22–26 pt and small section labels use 11 pt Geist Mono.
+The 18 pt choice is an intentional iCatalog adjustment for denser inspector
+and modal layouts, not a claim of identical sizes. The original D118 pass
+used 20 pt without that tracking, which looked too large to the owner.
+Comparison sources at the same font-source revision: ArtCraft
+`artcraft-native/src/theme.rs`, `ui/widgets.rs`, `overlays/account.rs` and
+`overlays/providers.rs`.
+Keep egui’s original proportional/monospace fallback stacks for ratings,
+Collection icons and other uncovered glyphs; native system fallback remains enabled.
+No system-font selection, dependency, command, catalogue or sync change.
+
+Configure fonts through the shared UI typography setup used by both desktop and
+headless harnesses. Synthetic rendering checks exercise all font roles, rating
+and Collection glyph coverage in both themes at 1×/1.5×/2× without system fonts.
+Existing layout/interaction checks and reviewed screenshots cover the new metrics.
+The Sync/Connect form is 480 points wide with six-point vertical spacing and
+a small viewport margin so expanded security settings, readable errors and
+actions fit an 800×600 window.
+The three OFL notices ship through the existing desktop/NAS/container packaging;
+font bytes are embedded only by the UI crate. Historical release recovery remains
+compatible with application revisions that predate these assets.
+
+Validation: final `task ci` and `task ui:visual` passed, including 169 headless
+UI tests and font-notice packaging regressions. All 49 changed screenshots
+received independent visual review, including the final five Connect/Sync
+layouts; snapshot tolerances are unchanged. Both native macOS smoke tests
+passed before the final spacing-only adjustment, which was covered by the
+headless tests and screenshots. No native Windows/Linux, container-runtime
+or wasm qualification is claimed.
+
+Heading refinement validation: `task ci` and `task ui:visual` passed again
+after changing to 18 pt/-0.03 em tracking. All 30 updated screenshots were
+independently reviewed against the preceding 20 pt versions; both themes,
+inspector sections, dialogs, previews and grouped rules remain readable without
+new clipping. Rendering assertions compare the compact heading dimensions
+with the prior 20 pt treatment at all three tested display scales.
+
+
+## D119 — PhotoCraft desktop typography, not ArtCraft display branding (2026-11-27)
+
+The owner's side-by-side screenshot showed oversized text and visibly stretched
+headings after D118. The earlier comparison used the separate `artcraft-native`
+app, whose branding display face is Archivo at 118% width. That was the wrong
+reference for the intended PhotoCraft-like desktop UI.
+
+Use [PhotoCraft's Pro typography](https://github.com/storytold/photocraft/blob/71f0d7483eb9ec56f483a2a4dbd13c2e6a0f65af/crates/ui-egui/src/theme.rs):
+Inter regular body/buttons at 12 pt, small text 10.5 pt, Inter semibold headings
+15 pt and JetBrains Mono monospace 12 pt. List metadata follows the body style
+instead of retaining a larger hardcoded size. Inter uses weights 400/600 and
+optical size 14, with natural character width and default tracking. Remove
+Archivo/Geist Mono assets and replace their notices with JetBrains Mono's OFL.
+Source revisions and hashes are retained in `licenses/ui-fonts/README.md`.
+
+Retain normal native monitor scaling, all fallback fonts, contrast and control
+hit targets. Font size changes do not zoom thumbnails or shrink pointer targets.
+No theme, preferences, command, data or dependency changes. The font coverage
+regression now verifies Inter headings have comparable advances to regular
+Inter at the same size, preventing the expanded display-face regression.
+
+Validation: `task ci`, `task ui:visual` and both native macOS `task ui:smoke`
+tests passed. All 169 headless UI tests passed without weakening their layout
+assertions. Independent visual review covered all 49 refreshed screenshots,
+including grouped rules, expanded security, metadata and Retina List. Snapshot
+tolerances are unchanged. Native Linux/Windows, container runtime and wasm were
+not requalified by this typography change.

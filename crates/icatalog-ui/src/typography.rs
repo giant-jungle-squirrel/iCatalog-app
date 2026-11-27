@@ -2,6 +2,61 @@
 //! Logical sizes remain independent of monitor DPI; eframe supplies native scale.
 use craft_ui::theme::WidgetPalette;
 use eframe::egui;
+use std::sync::Arc;
+
+fn heading_family() -> egui::FontFamily {
+    egui::FontFamily::Name("Inter Semibold".into())
+}
+
+/// Embed the PhotoCraft desktop typefaces with normal-width Inter headings.
+/// Keep egui's complete fallback stacks for symbols and uncovered characters.
+fn font_definitions() -> egui::FontDefinitions {
+    use egui::epaint::text::VariationCoords;
+    use egui::{FontData, FontFamily, FontTweak};
+
+    let mut fonts = egui::FontDefinitions::default();
+    let fallback_families = fonts.families.clone();
+    let inter = include_bytes!("../assets/fonts/Inter-Variable.ttf");
+    let mono = include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf");
+    for (name, bytes, coords, family, fallback_family) in [
+        (
+            "Inter",
+            inter.as_slice(),
+            vec![(*b"wght", 400.0), (*b"opsz", 14.0)],
+            FontFamily::Proportional,
+            FontFamily::Proportional,
+        ),
+        (
+            "Inter Semibold",
+            inter.as_slice(),
+            vec![(*b"wght", 600.0), (*b"opsz", 14.0)],
+            heading_family(),
+            FontFamily::Proportional,
+        ),
+        (
+            "JetBrains Mono",
+            mono.as_slice(),
+            vec![],
+            FontFamily::Monospace,
+            FontFamily::Monospace,
+        ),
+    ] {
+        let data = FontData::from_static(bytes).tweak(FontTweak {
+            coords: VariationCoords::new(coords),
+            ..Default::default()
+        });
+        fonts.font_data.insert(name.into(), Arc::new(data));
+        // Read the original defaults, independent of registration order.
+        let fallback = fallback_families
+            .get(&fallback_family)
+            .cloned()
+            .unwrap_or_default();
+        let mut stack = vec![name.into()];
+        stack.extend(fallback);
+        fonts.families.insert(family, stack);
+    }
+    fonts
+}
 
 /// Keep the viewing surface distinct from the surrounding panels in either theme.
 pub(crate) fn canvas_fill(visuals: &egui::Visuals) -> egui::Color32 {
@@ -65,20 +120,24 @@ impl Palette {
 }
 
 pub fn configure(ctx: &egui::Context) {
+    ctx.set_fonts(font_definitions());
     // Foreign filenames may contain characters unavailable on this machine.
     // Render a placeholder instead of treating missing font coverage as a crash.
     ctx.set_missing_glyph_policy(egui::MissingGlyphPolicy::Tofu);
     ctx.all_styles_mut(|style| {
         for (role, size) in [
-            (egui::TextStyle::Body, 15.0),
-            (egui::TextStyle::Button, 15.0),
-            (egui::TextStyle::Small, 13.0),
-            (egui::TextStyle::Monospace, 14.0),
-            (egui::TextStyle::Heading, 20.0),
+            (egui::TextStyle::Body, 12.0),
+            (egui::TextStyle::Button, 12.0),
+            (egui::TextStyle::Small, 10.5),
+            (egui::TextStyle::Monospace, 12.0),
+            (egui::TextStyle::Heading, 15.0),
         ] {
             if let Some(font) = style.text_styles.get_mut(&role) {
                 font.size = size;
             }
+        }
+        if let Some(font) = style.text_styles.get_mut(&egui::TextStyle::Heading) {
+            font.family = heading_family();
         }
         style.spacing.interact_size.y = 24.0;
         // Keep the established catalogue browsing density across egui upgrades.
@@ -135,6 +194,58 @@ pub fn configure(ctx: &egui::Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn embedded_typefaces_render_text_and_collection_symbols_without_system_fonts() {
+        let ctx = egui::Context::default();
+        configure(&ctx);
+        for theme in [egui::Theme::Dark, egui::Theme::Light] {
+            ctx.set_theme(theme);
+            for scale in [1.0, 1.5, 2.0] {
+                ctx.set_pixels_per_point(scale);
+                let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                    let ctx = ui.ctx();
+                    let style = ctx.style_of(theme);
+                    ctx.fonts_mut(|fonts| {
+                        for (role, name) in [
+                            (egui::TextStyle::Body, "Inter"),
+                            (egui::TextStyle::Small, "Inter"),
+                            (egui::TextStyle::Button, "Inter"),
+                            (egui::TextStyle::Heading, "Inter Semibold"),
+                            (egui::TextStyle::Monospace, "JetBrains Mono"),
+                        ] {
+                            let font = role.resolve(&style);
+                            assert_eq!(
+                                fonts
+                                    .definitions()
+                                    .families
+                                    .get(&font.family)
+                                    .and_then(|family| family.first()),
+                                Some(&name.to_owned())
+                            );
+                            let text = format!(
+                                "Photos café — 0123456789 ★ {} {}",
+                                crate::MANUAL_COLLECTION_ICON,
+                                crate::SMART_COLLECTION_ICON
+                            );
+                            assert!(fonts.has_glyphs(&font, &text));
+                            let galley = fonts.layout_no_wrap(text, font, egui::Color32::WHITE);
+                            assert!(galley.size().x.is_finite() && galley.size().x > 0.0);
+                            assert!(galley.size().y.is_finite() && galley.size().y > 0.0);
+                        }
+                    });
+                    // Weight may change advances slightly; headings must not use
+                    // the previous expanded display face or tracking adjustment.
+                    let title = "Edit Smart Collection";
+                    let regular = ui.label(egui::RichText::new(title).size(15.0));
+                    let semibold = ui.heading(title);
+                    assert!(semibold.rect.width() < regular.rect.width() * 1.08);
+                    assert!(semibold.rect.width() > regular.rect.width() * 0.95);
+                });
+                output.textures_delta.clear();
+            }
+        }
+    }
 
     fn contrast(a: egui::Color32, b: egui::Color32) -> f32 {
         let luminance = |color: egui::Color32| {
@@ -204,7 +315,7 @@ mod tests {
                     .text_styles
                     .get(&egui::TextStyle::Body)
                     .map(|font| font.size),
-                Some(15.0)
+                Some(12.0)
             );
             assert_eq!(style.spacing.interact_size.y, 24.0);
         }

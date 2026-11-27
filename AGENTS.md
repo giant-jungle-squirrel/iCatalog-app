@@ -164,7 +164,7 @@ Thumbnails use the asset's EXIF orientation, including mirrored values (D31). Im
 
 List view uses thumbnail rows with filename/rating/dates/filesize, document/camera/lens/focal length, and dimensions/colour/profile columns (D32). It uses the browser pane width and horizontal scrolling in narrow windows. Details is initially visible in both Grid and List, with one shared visibility setting (D112). Import/update capture supported source colour/ICC descriptions; Update backfills older catalogue entries. Missing metadata stays explicit.
 
-Desktop typography uses 15 pt interface/caption text, 14 pt List metadata and 13 pt small text, with stronger contrast in both themes (D33). Font hinting stays enabled and fractional glyph variants are disabled; eframe's native monitor scale is preserved. Headless layout checks cover 1×/1.5×/2× scales; visual baselines also cover light and Retina List views.
+Desktop typography follows PhotoCraft's Pro desktop UI (D119): normal-width Inter regular body/buttons/captions and List metadata at 12 pt, small text 10.5 pt, Inter semibold headings 15 pt and JetBrains Mono monospace 12 pt. This supersedes D118's stretched Archivo display headings; no special width or tracking applies. OFL notices ship in release packages. Strong contrast, hinting, disabled fractional glyph variants and native DPI are retained. Headless layout checks cover both themes at 1×/1.5×/2×; visual baselines also cover light and Retina List views.
 
 Details inspector and app dialogs use local, roomier text spacing (D47), leaving sidebar and grid/List browsing density unchanged. The inspector has inset content, larger section gaps, wrapping annotation controls and vertical scrolling for short windows. Collection/Smart rules/Connect/Sync dialogs have wider margins and field/button gaps; D117 Smart rule/group rows scroll while Name, preview and actions remain reachable at 800×600. Rename/Edit Rules place Name beside its field; creation keeps its stacked Name layout. Native OS pickers keep system spacing.
 
@@ -238,7 +238,7 @@ Panels and Reset Layout exist in native macOS and in-app menus. Default docks ar
 220 points left (Folders/Collections 40/60) and 320 points right (Details); user
 resizing overrides defaults. Catalogue rows, selection, command workers and
 modal guards remain authoritative. WidgetPalette and toolbar fitting/overflow
-extend shared-component adoption. D113 retains the fonts and applies PhotoCraft/
+extend shared-component adoption. D113 applies PhotoCraft/
 LightCraft-inspired charcoal/silver surfaces, recessed fields, neutral thumbnail
 selection and accessible Grid/List icon controls.
 

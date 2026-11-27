@@ -189,9 +189,9 @@ pub fn draw(
                     ui.visuals().text_color()
                 };
                 if column_index == 0 && i == 1 {
-                    crate::rating::display(ui, rating, 14.0, color);
+                    crate::rating::display(ui, rating, 12.0, color);
                 }
-                let text = egui::RichText::new(line).size(14.0).color(color);
+                let text = egui::RichText::new(line).color(color);
                 ui.add(
                     egui::Label::new(if i == 0 { text.strong() } else { text })
                         .truncate()
