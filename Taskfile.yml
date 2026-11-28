@@ -202,7 +202,7 @@ tasks:
       - bash packaging/build-nas.sh build {{.CLI_ARGS}}
 
   nas:test:
-    desc: Run native musl CLI and sync/TLS tests and verify the NAS archive
+    desc: Run native musl migration, media, engine, CLI and sync/TLS tests and verify the NAS archive
     cmds:
       - bash packaging/build-nas.sh test {{.CLI_ARGS}}
       - bash packaging/test-nas.sh {{.CLI_ARGS}}
@@ -218,6 +218,6 @@ tasks:
       - bash packaging/docker/build.sh {{.CLI_ARGS}}
 
   docker:test:
-    desc: Test container persistence, permissions, previews and clone/edit/sync with disposable data (e.g. -- icatalog:local)
+    desc: Test container persistence, permissions, previews and grouped Collection sync with disposable data (e.g. -- icatalog:local)
     cmds:
       - bash packaging/docker/test.sh {{.CLI_ARGS}}

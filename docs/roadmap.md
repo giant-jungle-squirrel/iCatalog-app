@@ -97,6 +97,12 @@ D100 adds a non-root systemd unit with token-protected loopback HTTP, an optiona
 
 ## 4. Next
 
+D121 platform qualification is in progress. Current commit `19d98c0` passed
+native NAS and Docker/Compose checks on both architectures on 2026-11-28.
+Expanded migration/media/engine coverage and grouped Collection container
+persistence are now included; desktop and final expanded-suite results are
+tracked in [Development](development.md#current-platform-qualification-d121).
+
 
 - **D20/D44, D98 and D99 are implemented**, including Collection edits, HTTPS/shared-token authentication, opt-in opening checks and durable conflict recovery. Automatic background sync remains out of scope. See `docs/sync.md` for protocol and recovery behavior.
 - **M3 sync, deployment half** — static NAS archives (D58) and Docker/Compose packaging (D60) are implemented. Native hosted archive, HTTPS/authentication and Docker/Compose checks passed on both architectures at `f59b12b` on 2026-11-13. D99 passed both native architectures at `a117808` on 2026-11-14. D100 supplies explicit systemd service setup. [v0.2.0](https://github.com/atwright147/iCatalog/releases/tag/v0.2.0) includes completed sync, service setup and stored-preview viewing (D101); the [release workflow](https://github.com/atwright147/iCatalog/actions/runs/43758179438) passed all native and package installation checks. Container registry publication remains open.
