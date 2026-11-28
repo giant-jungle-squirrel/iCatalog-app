@@ -1675,3 +1675,8 @@ zero failed pixels, unchanged baselines and the 0.6 other-platform threshold.
 
 Qualification results are recorded in `docs/development.md`; wasm and native
 Windows/Linux GUI interaction remain separate from build/package checks.
+
+The first expanded Windows runs exposed two pre-existing catalogue test assertions
+that expected Unix mount roots from macOS-style fixture paths. The host-specific
+`device_of` implementation correctly returns the Windows root for those foreign
+paths. Tests now assert each host behavior without changing production code.

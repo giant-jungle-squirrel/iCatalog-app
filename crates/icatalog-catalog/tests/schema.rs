@@ -293,6 +293,7 @@ fn annotation(asset_id: i64, rating: i64, label: i64) -> Annotation {
 }
 
 #[test]
+#[cfg(not(windows))]
 fn device_derivation_groups_by_volume() {
     assert_eq!(
         device_of("/Users/andy/Pictures"),
@@ -324,6 +325,18 @@ fn device_derivation_groups_by_volume() {
         device_label: None,
     };
     assert_eq!(old.device(), ("/".into(), "This Mac".into()));
+}
+
+#[test]
+#[cfg(windows)]
+fn device_derivation_uses_windows_root_for_foreign_posix_paths() {
+    // Imported source paths from another OS remain valid catalogue strings.
+    // Windows parses them under its local root rather than as Unix mounts.
+    assert_eq!(
+        device_of("/Volumes/NAS/Photos"),
+        ("\\".into(), "This Mac".into())
+    );
+    assert_eq!(device_of("relative/path"), ("\\".into(), "This Mac".into()));
 }
 
 #[test]
@@ -380,7 +393,10 @@ fn source_round_trip_and_idempotent_ensure() {
     assert_eq!(same, id);
     got = c.source(id).unwrap().unwrap();
     assert_eq!(got.last_seen_utc.as_deref(), Some("2026-10-24T00:00:00Z"));
+    #[cfg(not(windows))]
     assert_eq!(got.device_id.as_deref(), Some("/Volumes/DISC_1"));
+    #[cfg(windows)]
+    assert_eq!(got.device_id.as_deref(), Some("\\"));
     assert_eq!(c.all_sources().unwrap().len(), 1);
     c.touch_source(id, "/mnt/disc", "2026-10-25T00:00:00Z")
         .unwrap();

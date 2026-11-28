@@ -475,4 +475,4 @@ and [Docker/Compose lifecycle checks](https://github.com/giant-jungle-squirrel/i
 The expanded D121 native suites additionally exercise catalogue migrations,
 media decoders and engine commands; container checks now preserve nested grouped
 Smart Collection rules and membership through sync and replacement.
-Final expanded-suite and desktop qualification is pending.
+The first expanded release run found two catalogue tests that assumed Unix mount syntax on Windows. Their assertions now follow the documented host-specific path heuristic; the rerun is pending.
