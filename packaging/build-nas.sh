@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the CLI and test CLI/sync on a Linux host of the requested architecture.
+# Build the CLI and test its layers on a Linux host of the requested architecture.
 set -euo pipefail
 action=${1:-}
 target=${2:-}
@@ -18,8 +18,9 @@ target_key=${target//-/_}
 linker_key=$(printf '%s' "$target_key" | tr '[:lower:]' '[:upper:]')
 packages=(-p icatalog-cli)
 if [[ "$action" == test ]]; then
-  # Exercise real HTTPS/authentication with the static crypto implementation too.
-  packages+=(-p icatalog-sync)
+  # Exercise migrations, media decoders, commands and real HTTPS/authentication
+  # with the native static dependency graph, not just the CLI wrappers.
+  packages+=(-p icatalog-catalog -p icatalog-media -p icatalog-engine -p icatalog-sync)
 fi
 env "CC_$target_key=musl-gcc" \
   "CARGO_TARGET_${linker_key}_LINKER=musl-gcc" \

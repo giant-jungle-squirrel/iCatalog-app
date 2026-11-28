@@ -2641,14 +2641,16 @@ fn visual_snapshots() {
     settle(&mut rich);
     rich.event(egui::Event::PointerGone);
     rich.run();
-    rich.snapshot("catalogue-list-metadata");
+    // Run 46077916213: reviewed Linux images differ by at most 2/255 per
+    // channel; isolated text-edge pixels need YIQ 3.0 (zero failures).
+    rich.snapshot_options("catalogue-list-metadata", &linux_glyph_rounding_options);
     results.extend(rich.take_snapshot_results());
     let mut rich_narrow = rich_fixture.harness([800.0, 600.0]);
     rich_narrow.get_by_label("List").click();
     settle(&mut rich_narrow);
     rich_narrow.event(egui::Event::PointerGone);
     rich_narrow.run();
-    rich_narrow.snapshot("catalogue-list-narrow");
+    rich_narrow.snapshot_options("catalogue-list-narrow", &linux_glyph_rounding_options);
     results.extend(rich_narrow.take_snapshot_results());
     for (name, scale, theme) in [
         ("catalogue-list-light", 1.0, egui::Theme::Light),
@@ -2659,7 +2661,11 @@ fn visual_snapshots() {
         settle(&mut display);
         display.event(egui::Event::PointerGone);
         display.run();
-        display.snapshot(name);
+        if theme == egui::Theme::Light {
+            display.snapshot_options(name, &linux_glyph_rounding_options);
+        } else {
+            display.snapshot(name);
+        }
         results.extend(display.take_snapshot_results());
     }
     let smart_fixture = Fixture::new();
@@ -2794,7 +2800,7 @@ fn visual_snapshots() {
     sync.state_mut().sync_dialog.as_mut().unwrap().result = Some(
         "conflicting user edits preserved in backup; local copy resynced at generation 42\nbackup: /catalogues/Library.rejected-20261031T120000Z.sqlite (your local edits before the resync)\nconflict: asset:example-photo\nuser-edit upload: 128 bytes\nsnapshot: 2097152 bytes".into());
     settle(&mut sync);
-    sync.snapshot("catalogue-sync-conflict");
+    sync.snapshot_options("catalogue-sync-conflict", &linux_glyph_rounding_options);
     results.extend(sync.take_snapshot_results());
     let mut light = sync_fixture.harness_with_display([800.0, 600.0], 1.0, egui::Theme::Light);
     light.state_mut().replica = true;

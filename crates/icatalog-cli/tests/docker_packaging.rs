@@ -212,6 +212,39 @@ mod unix {
         fn url(&self) -> String {
             format!("http://{}:8080", self.server)
         }
+
+        fn grouped_rules(&self, catalogue: &str, matches: bool) -> String {
+            let collections = success(self.cli(&self.client, &["collection", catalogue, "list"]));
+            let collections = text(&collections.stdout);
+            // Sync identifies Collections by UID; a fresh server may assign a
+            // different numeric ID, so resolve it from the unique fixture name.
+            let id = collections
+                .lines()
+                .find(|line| line.contains("Container grouped collection"))
+                .and_then(|line| line.split_whitespace().next())
+                .expect("grouped Collection must survive sync and replacement");
+            let rules = success(self.cli(
+                &self.client,
+                &[
+                    "collection",
+                    catalogue,
+                    "rules",
+                    "--id",
+                    id,
+                    "--output",
+                    "json",
+                ],
+            ));
+            let members = success(self.cli(&self.client, &["list", catalogue, "--collection", id]));
+            let members = text(&members.stdout);
+            assert_eq!(members.contains("synthetic.bmp"), matches, "{members}");
+            assert_eq!(
+                members.lines().count(),
+                if matches { 2 } else { 1 },
+                "{members}"
+            );
+            text(&rules.stdout)
+        }
     }
 
     impl Drop for Containers {
@@ -396,10 +429,38 @@ mod unix {
                 "Container collection",
             ],
         ));
+        // Nested All/Any requires a kind-4 record; a flat AND-only fallback
+        // would lose the match because this BMP does not have PNG format.
+        let rules = r#"{"all":[{"any":[{"field":"format","value":"PNG"},{"field":"keyword","value":"container-round-trip"}]},{"field":"min-rating","value":5}]}"#;
+        success(containers.cli(
+            &containers.client,
+            &[
+                "collection",
+                catalogue,
+                "create-smart",
+                "--name",
+                "Container grouped collection",
+                "--rules-json",
+                rules,
+            ],
+        ));
+        let exported_rules = containers.grouped_rules(catalogue, true);
+        // Membership must remain live, and the outer All group must retain its
+        // rating predicate rather than broadening the complete tree to Any.
+        success(containers.cli(
+            &containers.client,
+            &["edit", catalogue, "--id", "1", "--rating", "4"],
+        ));
+        assert_eq!(containers.grouped_rules(catalogue, false), exported_rules);
+        success(containers.cli(
+            &containers.client,
+            &["edit", catalogue, "--id", "1", "--rating", "5"],
+        ));
         success(containers.cli(
             &containers.client,
             &["sync", catalogue, "--url", &containers.url()],
         ));
+        assert_eq!(containers.grouped_rules(catalogue, true), exported_rules);
         success(containers.cli(
             &containers.client,
             &[
@@ -438,6 +499,10 @@ mod unix {
         }
         containers.start();
         containers.clone_when_ready("/catalogue/after-restart.sqlite");
+        assert_eq!(
+            containers.grouped_rules("/catalogue/after-restart.sqlite", true),
+            exported_rules
+        );
         if containers.compose_override.is_some() {
             let media_write = containers.engine(&[
                 "exec",
@@ -491,6 +556,10 @@ mod unix {
         if containers.compose_override.is_some() {
             containers.start();
             containers.clone_when_ready("/catalogue/after-compose-replacement.sqlite");
+            assert_eq!(
+                containers.grouped_rules("/catalogue/after-compose-replacement.sqlite", true),
+                exported_rules
+            );
             let found = success(containers.cli(
                 &containers.client,
                 &[
@@ -508,7 +577,7 @@ mod unix {
         }
         success(containers.cli(&containers.catalogue, &["open", catalogue]));
         println!(
-            "container init/import/previews/clone/edit/sync/replacement/read-only checks passed"
+            "container init/import/previews/clone/edit/grouped-rules/sync/replacement/read-only checks passed"
         );
     }
 }

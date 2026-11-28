@@ -1653,3 +1653,30 @@ reference application, screen, version, theme and typography before matching,
 and to verify bundled-font provenance, licences and packaging notices. Existing
 coordination, review, safety and final-check rules remain in force. No new skill,
 product dependency or command surface is introduced.
+
+
+## D121 — Native platform qualification coverage (2026-11-28)
+
+The owner requested current-build NAS, container and desktop qualification after
+Craft adoption and grouped Smart Collections. Native NAS and desktop release
+tests now include catalogue migrations, media and engine suites alongside CLI
+and sync tests. This exercises schema-v9 preservation/rollback/read-only tests
+and grouped command validation on each native target. Container lifecycle tests
+add nested All/Any rules, live membership changes, exact JSON export preservation,
+sync and recloning after server/Compose replacement using generated media.
+Older-server refusal remains a simulated protocol test; update server and clients
+together, rather than treating these checks as mixed-version interoperability.
+
+Linux run 46077916213 exposed six failing pixels across five snapshots:
+List metadata, narrow List, light List, sync conflict and light preview. Image
+review found identical dimensions/layout and differences of at most 2/255 per
+channel. Extend D96's Linux-only YIQ tolerance 3.0 to those five snapshots, keeping
+zero failed pixels, unchanged baselines and the 0.6 other-platform threshold.
+
+Qualification results are recorded in `docs/development.md`; wasm and native
+Windows/Linux GUI interaction remain separate from build/package checks.
+
+The first expanded Windows runs exposed two pre-existing catalogue test assertions
+that expected Unix mount roots from macOS-style fixture paths. The host-specific
+`device_of` implementation correctly returns the Windows root for those foreign
+paths. Tests now assert each host behavior without changing production code.
